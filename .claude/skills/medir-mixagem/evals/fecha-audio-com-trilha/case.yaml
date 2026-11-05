@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: fecha-audio-com-trilha
+expected_outcome: |
+  Mede o MP4 final e relata tabela, veredito e o empilhamento em 11,32 s, sem alterar o projeto.

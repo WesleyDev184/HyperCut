@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: analisa-arquivo-do-projeto
+expected_outcome: |
+  Gera relatório local e responde com base nas pranchas e nos cortes.

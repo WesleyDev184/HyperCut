@@ -1,0 +1,45 @@
+# Vídeos de cada pessoa ficam só na máquina dela
+projetos/*
+!projetos/.gitkeep
+
+# Skills: só as deste repositório. real-sfx não tem licença de redistribuição e vem do original,
+# e as skills do HyperFrames são instaladas por agente
+.claude/skills/*
+!.claude/skills/assistir-video/
+!.claude/skills/legendas-da-voz/
+!.claude/skills/medir-mixagem/
+!.claude/skills/tratar-bruto/
+!.claude/skills/reel
+skills-lock.json
+
+# Prompts pessoais, citam produtos específicos
+prompts/
+
+# Ambiente: recriado pelo INSTALACAO.md
+node_modules/
+.venv/
+.cache/
+__pycache__/
+*.pyc
+
+# Sistema, editor e logs
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+.idea/
+.vscode/
+
+# Segredos e configuração local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.dump
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Resultado de eval de skill
+.claude/skills/*/evals/results/

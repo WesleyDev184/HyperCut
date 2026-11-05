@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Cria um projeto de reel (video real, skill reel) em projetos/.
+# Uso: novo-reel <nome-em-kebab-case> [video-bruto]
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+NOME="${1:?uso: novo-reel <nome-em-kebab-case> [video-bruto]}"
+BRUTO="${2:-}"
+
+if [[ ! "$NOME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  echo "Nome invalido: '$NOME'. Use kebab-case, ex.: dica-de-pasto" >&2
+  exit 1
+fi
+P="$ROOT/projetos/reel-$NOME"
+if [[ -e "$P" ]]; then
+  echo "Ja existe: projetos/reel-$NOME" >&2
+  exit 1
+fi
+
+mkdir -p "$P"/{brutos,referencias,corte,render,qa,entrega,assets}
+cp "$ROOT/modelo/BRIEF.md" "$P/"
+cp "$ROOT/paletas/escura.json" "$P/pele-resolvida.json"
+[[ -z "$BRUTO" ]] || cp "$BRUTO" "$P/brutos/"
+echo "Projeto criado: projetos/reel-$NOME"

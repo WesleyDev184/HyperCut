@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Cria um projeto padronizado em projetos/.
+# Uso: novo-video <nome-em-kebab-case> [landscape|portrait|square]
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+NOME="${1:?uso: novo-video <nome-em-kebab-case> [landscape|portrait|square]}"
+FORMATO="${2:-landscape}"
+
+if [[ ! "$NOME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  echo "Nome invalido: '$NOME'. Use kebab-case, ex.: lancamento-produto" >&2
+  exit 1
+fi
+if [[ -e "$ROOT/projetos/$NOME" ]]; then
+  echo "Ja existe: projetos/$NOME" >&2
+  exit 1
+fi
+
+cd "$ROOT/projetos"
+"$ROOT/bin/hf" init "$NOME" --non-interactive --resolution "$FORMATO" --skill=hyperframes
+cp -R "$ROOT/modelo/." "$NOME/"
+
+# Os scripts do projeto passam pelo ambiente da pasta, sem npx.
+node -e '
+  const fs = require("fs");
+  const file = process.argv[1];
+  const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+  pkg.scripts = {
+    dev: "../../bin/hf preview",
+    check: "../../bin/hf check",
+    render: "../../bin/hf render",
+    publish: "../../bin/hf publish",
+  };
+  fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
+' "$NOME/package.json"
+
+echo "Projeto criado: projetos/$NOME"

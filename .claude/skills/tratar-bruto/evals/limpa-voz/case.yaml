@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: limpa-voz
+expected_outcome: |
+  Grava em assets sem tocar no bruto e pede para ouvir.

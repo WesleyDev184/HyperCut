@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: atualiza-review-sem-trilha
+expected_outcome: |
+  Atualiza só a tabela da seção de áudio, sem linha de trilha e sem perder a nota sobre ouvido humano.

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Instala as skills do HyperFrames, de forma global, nos agentes achados nesta maquina.
+# Quem usa o plugin do HyperFrames atualiza pelo agente e nao precisa deste comando.
+set -euo pipefail
+
+HF_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+source "$HF_ROOT/bin/ambiente.sh"
+# ambiente.sh bloqueia instalacao de skills para o init nao mexer nelas a cada projeto.
+unset HYPERFRAMES_SKIP_SKILLS
+exec "$HF_ROOT/node_modules/.bin/hyperframes" skills update

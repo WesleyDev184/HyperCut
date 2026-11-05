@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: troca-de-voz
+expected_outcome: |
+  Refaz a transcrição da voz nova e gera de novo sem reescrever os blocos já revisados.

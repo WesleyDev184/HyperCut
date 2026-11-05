@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Compila whisper-cli com CUDA em .cache/whisper-cuda/, para a skill reel. Nao toca no sistema nem no binario do CLI.
+# Baixa o toolkit em pacotes da NVIDIA, com sha256 conferido. bin/ambiente.sh passa a preferir este whisper-cli.
+set -euo pipefail
+
+HF_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+D="${WHISPER_CUDA_DIR:-$HF_ROOT/.cache/whisper-cuda}"
+SRC="$HF_ROOT/.cache/hyperframes/whisper/whisper.cpp"
+CUDA_VER=12.9.1
+BASE=https://developer.download.nvidia.com/compute/cuda/redist
+ARQ="${WHISPER_CUDA_ARCH:-89}"   # 89: RTX 40xx
+
+# Fonte: a que o CLI baixou, ou a mesma versao clonada aqui.
+if [ ! -f "$SRC/CMakeLists.txt" ]; then
+  SRC="$D/whisper.cpp"
+  [ -d "$SRC" ] || git clone -q https://github.com/ggml-org/whisper.cpp.git "$SRC"
+  git -C "$SRC" checkout -q 4da27c4
+fi
+
+mkdir -p "$D/toolkit" "$D/baixados"
+rm -rf "$D/build"
+curl -fsSL "$BASE/redistrib_$CUDA_VER.json" -o "$D/baixados/manifesto.json"
+python3 -I - "$D/baixados/manifesto.json" > "$D/baixados/lista.txt" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for c in ("cuda_nvcc", "cuda_cudart", "cuda_cccl", "libcublas", "cuda_crt", "libnvvm"):
+    if c in m:
+        p = m[c]["linux-x86_64"]
+        print(p["relative_path"], p["sha256"])
+PY
+while read -r rel sha; do
+  f="$D/baixados/$(basename "$rel")"
+  [ -f "$f" ] || curl -fsSL "$BASE/$rel" -o "$f"
+  echo "$sha  $f" | sha256sum -c --quiet
+  tar -xJf "$f" -C "$D/toolkit" --strip-components=1
+done < "$D/baixados/lista.txt"
+rm -rf "$D/baixados"
+ln -sfn lib "$D/toolkit/lib64"   # nvcc.profile procura lib64
+
+export PATH="$D/toolkit/bin:$PATH"
+cmake -S "$SRC" -B "$D/build" -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="$ARQ" \
+  -DCUDAToolkit_ROOT="$D/toolkit" -DCMAKE_CUDA_COMPILER="$D/toolkit/bin/nvcc" \
+  -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF \
+  -DCMAKE_BUILD_RPATH="$D/build/bin;$D/toolkit/lib" \
+  -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath-link,$D/toolkit/lib -L$D/toolkit/lib"
+cmake --build "$D/build" --target whisper-cli -j "$(( $(nproc) - 2 ))"
+echo "Pronto: $D/build/bin/whisper-cli"

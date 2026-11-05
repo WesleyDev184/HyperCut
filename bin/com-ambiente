@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Roda um comando com o ambiente desta pasta, para agentes e terminais sem hook.
+# Uso: bin/com-ambiente <comando> [args]
+set -euo pipefail
+
+HF_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+source "$HF_ROOT/bin/ambiente.sh"
+exec "$@"

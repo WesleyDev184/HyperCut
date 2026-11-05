@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Roda bin/transcrever_gpu.py com cuBLAS, cuDNN e modelos de .cache/whisper-gpu/.
+# Saida 3: sem GPU instalada ou caso que nao e da GPU. Instalar: bin/instalar-whisper-gpu
+set -euo pipefail
+
+HF_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+D="$HF_ROOT/.cache/whisper-gpu"
+[ -x "$D/venv/bin/python" ] || exit 3
+SP="$(echo "$D"/venv/lib/python*/site-packages/nvidia)"
+export LD_LIBRARY_PATH="$SP/cublas/lib:$SP/cudnn/lib:${LD_LIBRARY_PATH:-}"
+export HF_HOME="$D/modelos"
+exec "$D/venv/bin/python" "$HF_ROOT/bin/transcrever_gpu.py" "$@"

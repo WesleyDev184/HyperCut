@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Instala FFmpeg e FFprobe fixados em .cache/ffmpeg/, conferindo o checksum publicado.
+# O npm parou no 7.0.2 e no FFprobe 4.0.2, sem correções de segurança.
+# Uso: bin/instalar-ffmpeg
+# Se o build sair do ar, troque TAG, NOME e SHA pelos de github.com/BtbN/FFmpeg-Builds/releases.
+set -euo pipefail
+
+TAG=autobuild-2026-11-04-12-51
+NOME=ffmpeg-n8.1.3-34-ga35157abb9-linux64-gpl-8.1.tar.xz
+SHA=0fc51331600b02730e6d63485ac7e3cd203bdeeb13216cd78c8844aeb9277fb8
+VERSAO=n8.1.3-34
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+DESTINO="$ROOT/.cache/ffmpeg/$VERSAO"
+
+if [ "$(uname -s)-$(uname -m)" != "Linux-x86_64" ]; then
+  echo "Este build é só para Linux x86_64. Em outra máquina, o ambiente segue com o FFmpeg do npm." >&2
+  exit 1
+fi
+
+if [ ! -x "$DESTINO/ffmpeg" ]; then
+  TMP="$(mktemp -d "$ROOT/.cache/ffmpeg-XXXXXX")"
+  trap 'rm -rf "$TMP"' EXIT
+  curl -fL --proto '=https' --tlsv1.2 -o "$TMP/$NOME" \
+    "https://github.com/BtbN/FFmpeg-Builds/releases/download/$TAG/$NOME"
+  echo "$SHA  $TMP/$NOME" | sha256sum -c -
+  tar -xf "$TMP/$NOME" -C "$TMP" --strip-components=2 --no-same-owner --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+  mkdir -p "$DESTINO"
+  mv "$TMP/ffmpeg" "$TMP/ffprobe" "$DESTINO/"
+fi
+
+ln -sfn "$VERSAO" "$ROOT/.cache/ffmpeg/atual"
+"$DESTINO/ffmpeg" -hide_banner -version | head -1
+"$DESTINO/ffprobe" -hide_banner -version | head -1
+echo "FFmpeg instalado. Abra uma sessão nova para o ambiente usar esta versão."

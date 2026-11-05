@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: legenda-vertical-do-zero
+expected_outcome: |
+  Transcreve por trecho de fala, escreve blocos com a grafia do roteiro e gera compositions/legendas.html com check sem erro.

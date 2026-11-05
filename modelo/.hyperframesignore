@@ -1,0 +1,10 @@
+# Material de trabalho: fica fora de publish e cloud render.
+/brutos/
+/referencias/
+/roteiro/
+/tools/
+/BRIEF.md
+/SPEC.md
+/STORYBOARD.md
+/REVIEW.md
+/DESIGN.md

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: borrar-dado-sensivel
+expected_outcome: |
+  Avisa que borrão não protege dado sensível e sugere dados fictícios.

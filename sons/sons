@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""Efeitos sonoros sob demanda para um projeto de video.
+
+Uso, a partir da raiz da pasta HyperFrames:
+
+  Onde colocar (skill real-sfx, grava em roteiro/ do projeto):
+    sons/sons momentos <projeto> [--video renders/x.mp4]
+
+  Som gravado do kit local (CC0, sem rede):
+    sons/sons kit [--tipo whoosh]
+    sons/sons pegar <arquivo-do-kit> <nome-kebab> <projeto>
+
+  Som gravado (Openverse, so CC0 e CC BY, busque em ingles):
+    sons/sons buscar "whoosh" [--cc0] [--max 15] [--pagina 2]
+    sons/sons baixar <openverse-id> <nome-kebab> <projeto>
+
+  Som gerado por codigo (earshot), quando o Openverse nao tiver o certo:
+    sons/sons banco [--tipo whoosh]
+    sons/sons gerar <id-do-banco> <nome-kebab> <projeto> [--dur 0.8] [--apex 0.32] [--pitch E5] [--seed 7]
+    sons/sons forjar <receita> <nome-kebab> <projeto> --alvo "descricao em ingles" [--evitar "a" "b"]
+
+  Maquina nova:
+    sons/sons instalar
+
+O som vai para projetos/<projeto>/assets/sfx/<nome>.wav, com pico em -3 dBFS,
+em WAV 48 kHz. O credito vai para CREDITOS.md.
+"""
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+RAIZ = Path(__file__).resolve().parent.parent
+PROJETOS = RAIZ / "projetos"
+EARSHOT_HOME = RAIZ / ".cache" / "earshot"
+EARSHOT_VENV = EARSHOT_HOME / "venv"
+EARSHOT_COMMIT = "591fa3e028032e6dce56620a20e932e35667e8d8"  # tag v0.4.0
+FORJAS = EARSHOT_HOME / "forjas"
+KIT = RAIZ / "sons" / "kit-cc0"
+SKILL_SCRIPTS = RAIZ / ".claude" / "skills" / "real-sfx" / "scripts"
+
+API = "https://api.openverse.org/v1/audio/"
+# A API responde 403 ao User-Agent padrao do urllib.
+CABECALHOS = {"User-Agent": "hyperframes-sons/1.0", "Accept": "application/json"}
+LICENCAS = ("cc0", "by")
+HOSTS_AUDIO = {"cdn.freesound.org", "upload.wikimedia.org"}
+KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+UUID = re.compile(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
+ID_BANCO = re.compile(r"^[a-z0-9_]+(/[a-z0-9_.]+)+$")
+RECEITA = re.compile(r"^[a-z0-9_]+$")
+
+PICO_ALVO_DB = -3.0
+GANHO_MAX_DB = 30.0
+DURACAO_MAX_S = 60
+BYTES_MAX = 30 * 1024 * 1024
+# Silencio no comeco atrasa o som em relacao ao evento visual.
+APARA_INICIO = "silenceremove=start_periods=1:start_threshold=-50dB"
+
+
+def erro(mensagem):
+    sys.exit(f"erro: {mensagem}")
+
+
+def limpa(texto):
+    """Texto da API vai para terminal e Markdown: uma linha, sem marcacao."""
+    return re.sub(r"[\x00-\x1f\x7f`\[\]<>\\]+", " ", str(texto or "")).strip()[:300]
+
+
+def api_json(url):
+    pedido = urllib.request.Request(url, headers=CABECALHOS)
+    try:
+        with urllib.request.urlopen(pedido, timeout=20) as resposta:
+            return json.load(resposta)
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            erro("limite da API atingido (20 por minuto, 200 por dia sem conta)")
+        if e.code == 404:
+            erro("som nao encontrado no Openverse")
+        erro(f"Openverse respondeu HTTP {e.code}")
+    except (urllib.error.URLError, TimeoutError) as e:
+        erro(f"Openverse inacessivel: {e}")
+
+
+def ffmpeg(*argumentos):
+    binario = os.environ.get("HYPERFRAMES_FFMPEG_PATH") or str(
+        RAIZ / "node_modules/ffmpeg-static/ffmpeg"
+    )
+    return subprocess.run(
+        [binario, "-hide_banner", "-nostats", *argumentos], capture_output=True, text=True
+    )
+
+
+def medir_pico(arquivo):
+    saida = ffmpeg("-i", str(arquivo), "-af", f"{APARA_INICIO},volumedetect", "-f", "null", "-")
+    achado = re.search(r"max_volume: (-?[\d.]+) dB", saida.stderr)
+    if saida.returncode != 0 or not achado:
+        erro("o arquivo baixado nao tem audio legivel")
+    return float(achado.group(1))
+
+
+def normalizar(origem, destino, ganho_db):
+    saida = ffmpeg(
+        "-i", str(origem), "-af", f"{APARA_INICIO},volume={ganho_db:.2f}dB",
+        "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", "-y", str(destino),
+    )
+    if saida.returncode != 0:
+        erro("falha ao normalizar o audio")
+
+
+def baixar_arquivo(url, destino):
+    alvo = urllib.parse.urlparse(url)
+    if alvo.scheme != "https" or alvo.hostname not in HOSTS_AUDIO:
+        erro(f"origem de audio nao permitida: {limpa(alvo.hostname)}")
+    pedido = urllib.request.Request(url, headers={"User-Agent": CABECALHOS["User-Agent"]})
+    try:
+        with urllib.request.urlopen(pedido, timeout=60) as resposta:
+            dados = resposta.read(BYTES_MAX + 1)
+    except (urllib.error.URLError, TimeoutError) as e:
+        erro(f"download falhou: {e}")
+    if len(dados) > BYTES_MAX:
+        erro("arquivo grande demais")
+    destino.write_bytes(dados)
+
+
+def no_ambiente(comando, **opcoes):
+    """Roda com o ambiente da pasta: ffmpeg, ffprobe e modelos do earshot."""
+    carrega = 'source "$HF_ROOT/bin/ambiente.sh"; exec "$@"'
+    ambiente = {**os.environ, "HF_ROOT": str(RAIZ), "EARSHOT_HOME": str(EARSHOT_HOME)}
+    return subprocess.run(["bash", "-c", carrega, "_", *map(str, comando)], env=ambiente, **opcoes)
+
+
+def earshot(*argumentos, **opcoes):
+    binario = EARSHOT_VENV / "bin" / "earshot"
+    if not binario.exists():
+        erro("earshot nao instalado: rode sons/sons instalar")
+    return no_ambiente([binario, *argumentos], **opcoes)
+
+
+def destino_livre(nome, projeto):
+    if not KEBAB.match(nome):
+        erro("nome invalido: use kebab-case, ex.: whoosh-grave")
+    if not KEBAB.match(projeto) or not (PROJETOS / projeto).is_dir():
+        erro(f"projeto nao encontrado: {projeto}")
+    pasta = PROJETOS / projeto / "assets" / "sfx"
+    destino = pasta / f"{nome}.wav"
+    if destino.exists():
+        erro(f"ja existe: assets/sfx/{nome}.wav")
+    return pasta, destino
+
+
+def registrar_credito(pasta, nome, texto):
+    creditos = pasta / "CREDITOS.md"
+    anteriores = creditos.read_text(encoding="utf-8").splitlines() if creditos.exists() else []
+    linhas = [l for l in anteriores if l.startswith("- ") and not l.startswith(f"- `{nome}.wav`:")]
+    linhas.append(f"- `{nome}.wav`: {texto}")
+    creditos.write_text(
+        "# Créditos dos efeitos sonoros\n\n"
+        "Sons marcados como obrigatórios são CC BY: publique o crédito junto com o vídeo.\n\n"
+        + "\n".join(sorted(linhas)) + "\n",
+        encoding="utf-8",
+    )
+
+
+def cmd_buscar(args):
+    parametros = {
+        "q": args.termo,
+        "license": "cc0" if args.cc0 else ",".join(LICENCAS),
+        "source": "freesound",
+        "page_size": 20,
+        "page": args.pagina,
+    }
+    corpo = api_json(f"{API}?{urllib.parse.urlencode(parametros)}")
+    resultados = corpo.get("results", [])
+    # category e length nao funcionam no acervo do Freesound: a duracao e filtrada aqui.
+    achados = [
+        r for r in resultados
+        if r.get("license") in LICENCAS and r.get("duration") and r["duration"] <= args.max * 1000
+    ]
+    if not achados:
+        print("nada nesta pagina. Tente --pagina, --max maior ou outro termo em ingles.")
+        return
+    for r in achados:
+        print(f"{r['id']}  {r['duration'] / 1000:5.1f}s  {r['license']:3}  "
+              f"{limpa(r.get('title'))[:44]} ({limpa(r.get('creator'))[:20]})")
+        print(f"    ouvir: {limpa(r.get('foreign_landing_url'))}")
+    print(f"\n{len(achados)} de {len(resultados)} nesta pagina, "
+          f"pagina {args.pagina} de {corpo.get('page_count')}")
+
+
+def cmd_baixar(args):
+    if not UUID.match(args.id):
+        erro("id invalido: copie o id completo mostrado por buscar")
+    pasta, destino = destino_livre(args.nome, args.projeto)
+
+    som = api_json(f"{API}{args.id}/")
+    if som.get("license") not in LICENCAS:
+        erro(f"licenca recusada: {limpa(som.get('license'))}. So CC0 e CC BY.")
+    if som.get("mature"):
+        erro("som marcado como sensivel")
+    if (som.get("duration") or 0) > DURACAO_MAX_S * 1000:
+        erro(f"som com mais de {DURACAO_MAX_S} s")
+
+    pasta.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as temporaria:
+        bruto = Path(temporaria) / "bruto"
+        baixar_arquivo(som.get("url", ""), bruto)
+        pico = medir_pico(bruto)
+        ganho = PICO_ALVO_DB - pico
+        if ganho > GANHO_MAX_DB:
+            erro(f"som fraco demais: pico de {pico} dBFS")
+        normalizar(bruto, destino, ganho)
+
+    aviso = "CRÉDITO OBRIGATÓRIO. " if som["license"] == "by" else ""
+    registrar_credito(
+        pasta, args.nome,
+        f"{aviso}{limpa(som.get('attribution'))} Fonte: {limpa(som.get('foreign_landing_url'))} "
+        "Alterações: início aparado e nível ajustado.",
+    )
+    print(f"assets/sfx/{args.nome}.wav em {args.projeto}: {som['license']}, "
+          f"pico original {pico} dBFS, ganho {ganho:+.1f} dB")
+    if som["license"] == "by":
+        print("CC BY: o credito em assets/sfx/CREDITOS.md precisa sair junto com o video.")
+
+
+def kit_itens():
+    """So entra o que o manifesto declara CC0 e que existe aqui: nada de caminho vindo de fora."""
+    manifesto = json.loads((KIT / "manifest.json").read_text(encoding="utf-8"))
+    itens = {}
+    for item in manifesto["default_kit"] + manifesto["bundled"]:
+        arquivo = item.get("file")
+        if arquivo and item.get("license") == "CC0 1.0" and (KIT / arquivo).is_file():
+            itens[arquivo] = item
+    return itens
+
+
+def cmd_kit(args):
+    itens = kit_itens()
+    achados = [a for a, i in sorted(itens.items()) if not args.tipo or i["category"] == args.tipo]
+    if not achados:
+        erro(f"tipo sem sons. Tipos: {', '.join(sorted({i['category'] for i in itens.values()}))}")
+    for arquivo in achados:
+        duracao = itens[arquivo].get("duration_s")
+        print(f"{arquivo}  {itens[arquivo]['category']}" + (f"  {duracao} s" if duracao else ""))
+    print(f"{len(achados)} sons. Prévias com perda: ouça antes de usar.")
+
+
+def cmd_pegar(args):
+    item = kit_itens().get(args.arquivo)
+    if not item:
+        erro("arquivo fora do kit: copie o caminho mostrado por sons/sons kit")
+    pasta, destino = destino_livre(args.nome, args.projeto)
+    origem = KIT / args.arquivo
+    pasta.mkdir(parents=True, exist_ok=True)
+    pico = medir_pico(origem)
+    normalizar(origem, destino, PICO_ALVO_DB - pico)
+    credito = item.get("credit") or item.get("attribution") or "autor no manifesto"
+    registrar_credito(pasta, args.nome, f"{limpa(credito)}. Licença CC0 1.0. Fonte: {limpa(item.get('source_url'))} "
+                                        "Alterações: início aparado e nível ajustado.")
+    print(f"assets/sfx/{args.nome}.wav em {args.projeto}: CC0, pico original {pico} dBFS")
+
+
+def cmd_banco(args):
+    comando = ["sfx", "list"] + (["--kind", args.tipo] if args.tipo else [])
+    sys.exit(earshot(*comando).returncode)
+
+
+def cmd_gerar(args):
+    if not ID_BANCO.match(args.id):
+        erro("id invalido: veja sons/sons banco")
+    pasta, destino = destino_livre(args.nome, args.projeto)
+    pasta.mkdir(parents=True, exist_ok=True)
+    comando = ["sfx", "render", args.id, "-o", destino, "--peak", PICO_ALVO_DB, "--sr", 48000]
+    for opcao in ("dur", "apex", "pitch", "seed"):
+        valor = getattr(args, opcao)
+        if valor is not None:
+            comando += [f"--{opcao}", valor]
+    saida = earshot(*comando, capture_output=True, text=True)
+    if saida.returncode != 0:
+        destino.unlink(missing_ok=True)
+        erro(saida.stderr.strip() or "falha ao gerar o som")
+    relato = saida.stdout.strip().split(": ", 1)[-1]
+    semente = re.search(r"seed (\d+)", relato)
+    registrar_credito(
+        pasta, args.nome,
+        f"gerado por código com earshot 0.4.0 (MIT), banco `{args.id}`"
+        + (f", seed {semente.group(1)}." if semente else "."),
+    )
+    print(f"assets/sfx/{args.nome}.wav em {args.projeto}: {relato}")
+
+
+def cmd_forjar(args):
+    if not RECEITA.match(args.receita):
+        erro("receita invalida: veja .cache/earshot/venv/bin/earshot forge --list")
+    pasta, destino = destino_livre(args.nome, args.projeto)
+    forja = FORJAS / args.projeto / args.nome
+    if forja.exists():
+        shutil.rmtree(forja)
+    forja.mkdir(parents=True)
+    comando = ["forge", args.receita, "--target", args.alvo, "--budget", args.orcamento,
+               "--variants", 2, "--robust", 1, "--dir", forja]
+    if args.evitar:
+        comando += ["--alts", *args.evitar]
+    saida = earshot(*comando, capture_output=True, text=True)
+    if saida.returncode != 0:
+        erro(saida.stderr.strip() or "falha na forja")
+    candidatos = sorted(forja.glob(f"{args.receita}_*.wav"))
+    if not candidatos:
+        erro(f"a forja nao entregou som: veja {forja / 'report.md'}")
+    pasta.mkdir(parents=True, exist_ok=True)
+    normalizar_sem_aparar(candidatos[0], destino)
+    registrar_credito(
+        pasta, args.nome,
+        f"gerado por código com earshot 0.4.0 (MIT), receita `{args.receita}`, "
+        f"alvo \"{limpa(args.alvo)}\".",
+    )
+    for linha in saida.stdout.splitlines():
+        if re.match(r"\s*\w+_\d+: ", linha):
+            print(linha.strip()[:200])
+    print(f"assets/sfx/{args.nome}.wav em {args.projeto}, do candidato {candidatos[0].name}")
+    print(f"outros candidatos e relatorio: {forja}")
+
+
+def normalizar_sem_aparar(origem, destino):
+    """Sem aparar: o som gerado ja chega com o inicio medido."""
+    saida = ffmpeg("-i", str(origem), "-af", "volumedetect", "-f", "null", "-")
+    achado = re.search(r"max_volume: (-?[\d.]+) dB", saida.stderr)
+    if saida.returncode != 0 or not achado:
+        erro("o som gerado nao tem audio legivel")
+    ganho = PICO_ALVO_DB - float(achado.group(1))
+    saida = ffmpeg("-i", str(origem), "-af", f"volume={ganho:.2f}dB", "-ar", "48000",
+                   "-c:a", "pcm_s16le", "-y", str(destino))
+    if saida.returncode != 0:
+        erro("falha ao normalizar o som gerado")
+
+
+def cmd_momentos(args):
+    if not KEBAB.match(args.projeto) or not (PROJETOS / args.projeto).is_dir():
+        erro(f"projeto nao encontrado: {args.projeto}")
+    projeto = PROJETOS / args.projeto
+    python = EARSHOT_VENV / "bin" / "python"
+    if not python.exists():
+        erro("ambiente nao instalado: rode sons/sons instalar")
+    if not SKILL_SCRIPTS.is_dir():
+        erro("skill real-sfx nao encontrada em .claude/skills/real-sfx")
+    saida_roteiro = projeto / "roteiro"
+    saida_roteiro.mkdir(exist_ok=True)
+    momentos = saida_roteiro / "momentos.json"
+    sugestao = saida_roteiro / "sugestao-sons.json"
+    comando = [python, SKILL_SCRIPTS / "from_hyperframes.py", projeto, "--out", momentos]
+    video = None
+    if args.video:
+        video = (projeto / args.video).resolve()
+        if not video.is_relative_to(projeto.resolve()) or not video.is_file():
+            erro(f"video nao encontrado no projeto: {args.video}")
+        comando += ["--video", video]
+    leitura = no_ambiente(comando, capture_output=True, text=True)
+    if leitura.returncode != 0:
+        erro(leitura.stderr.strip() or "falha ao ler a composicao")
+    avisos = (leitura.stdout + leitura.stderr).count("WARN")
+    rascunho = no_ambiente([python, SKILL_SCRIPTS / "suggest_cues.py", momentos, "--out", sugestao],
+                           capture_output=True, text=True)
+    if rascunho.returncode != 0:
+        erro(rascunho.stderr.strip() or "falha ao sugerir os momentos")
+    for cue in json.loads(sugestao.read_text(encoding="utf-8")).get("cues", []):
+        print(f"{cue['t']:7.2f}s  {limpa(cue.get('label'))[:70]}")
+    print(f"\nrascunho em roteiro/{sugestao.name}. Confira nos quadros e corte o que sobrar.")
+    if avisos:
+        print(f"{avisos} tempos da composicao nao foram entendidos e ficaram de fora.")
+        print("Use --video para comparar, ou find_moments.py --fine no render.")
+
+
+def cmd_instalar(args):
+    python = EARSHOT_VENV / "bin" / "python"
+    if not python.exists():
+        subprocess.run([sys.executable, "-m", "venv", EARSHOT_VENV], check=True)
+    pip = [python, "-m", "pip", "install", "-q"]
+    subprocess.run([*pip, "torch", "--index-url", "https://download.pytorch.org/whl/cpu"], check=True)
+    subprocess.run(
+        [*pip, f"earshot @ git+https://github.com/Leonxlnx/earshot@{EARSHOT_COMMIT}"], check=True
+    )
+    sys.exit(earshot("doctor", "--fetch").returncode)
+
+
+def main():
+    analisador = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    comandos = analisador.add_subparsers(dest="comando", required=True)
+
+    buscar = comandos.add_parser("buscar", help="procura no Openverse")
+    buscar.add_argument("termo")
+    buscar.add_argument("--cc0", action="store_true", help="so CC0, sem credito obrigatorio")
+    buscar.add_argument("--max", type=float, default=15, help="duracao maxima em segundos")
+    buscar.add_argument("--pagina", type=int, default=1)
+    buscar.set_defaults(funcao=cmd_buscar)
+
+    baixar = comandos.add_parser("baixar", help="traz um som para assets/sfx do projeto")
+    baixar.add_argument("id")
+    baixar.add_argument("nome")
+    baixar.add_argument("projeto")
+    baixar.set_defaults(funcao=cmd_baixar)
+
+    kit = comandos.add_parser("kit", help="lista os sons gravados locais, CC0")
+    kit.add_argument("--tipo", help="whoosh, click, pop, riser, impact, tick, ding...")
+    kit.set_defaults(funcao=cmd_kit)
+
+    pegar = comandos.add_parser("pegar", help="traz um som do kit para assets/sfx do projeto")
+    pegar.add_argument("arquivo")
+    pegar.add_argument("nome")
+    pegar.add_argument("projeto")
+    pegar.set_defaults(funcao=cmd_pegar)
+
+    momentos = comandos.add_parser("momentos", help="sugere onde colocar sons no projeto")
+    momentos.add_argument("projeto")
+    momentos.add_argument("--video", help="render relativo ao projeto, ex.: renders/x.mp4")
+    momentos.set_defaults(funcao=cmd_momentos)
+
+    banco = comandos.add_parser("banco", help="lista os 252 sons do earshot")
+    banco.add_argument("--tipo", help="whoosh, click, hit, riser...")
+    banco.set_defaults(funcao=cmd_banco)
+
+    gerar = comandos.add_parser("gerar", help="renderiza um som do banco no projeto")
+    gerar.add_argument("id")
+    gerar.add_argument("nome")
+    gerar.add_argument("projeto")
+    gerar.add_argument("--dur", type=float, help="duracao em segundos")
+    gerar.add_argument("--apex", type=float, help="segundos ate o ponto mais alto (familia whoosh)")
+    gerar.add_argument("--pitch", help="nota ou Hz, ex.: E5")
+    gerar.add_argument("--seed", type=int, help="nova tomada do mesmo som")
+    gerar.set_defaults(funcao=cmd_gerar)
+
+    forjar = comandos.add_parser("forjar", help="cria um som novo a partir de uma receita")
+    forjar.add_argument("receita")
+    forjar.add_argument("nome")
+    forjar.add_argument("projeto")
+    forjar.add_argument("--alvo", required=True, help="descricao em ingles")
+    forjar.add_argument("--evitar", nargs="*", help="descricoes que o som nao deve lembrar")
+    forjar.add_argument("--orcamento", type=int, default=48, help="candidatos avaliados")
+    forjar.set_defaults(funcao=cmd_forjar)
+
+    instalar = comandos.add_parser("instalar", help="instala earshot e modelos em .cache/earshot")
+    instalar.set_defaults(funcao=cmd_instalar)
+
+    args = analisador.parse_args()
+    args.funcao(args)
+
+
+if __name__ == "__main__":
+    main()

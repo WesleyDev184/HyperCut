@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Sugere uma paleta escura a partir das cores de um video.
+# Uso: paleta-do-video <video> > projetos/reel-<nome>/pele-resolvida.json
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+VIDEO="${1:?uso: paleta-do-video <video>}"
+
+exec "$ROOT/.venv/bin/python" -I - "$VIDEO" <<'PY'
+import colorsys, json, sys
+
+import cv2
+import numpy as np
+
+captura = cv2.VideoCapture(sys.argv[1])
+total = int(captura.get(cv2.CAP_PROP_FRAME_COUNT))
+if total <= 0:
+    sys.exit("Nao consegui ler o video.")
+
+quadros = []
+for indice in np.linspace(0, total - 1, 24).astype(int):
+    captura.set(cv2.CAP_PROP_POS_FRAMES, int(indice))
+    ok, quadro = captura.read()
+    if ok:
+        quadros.append(cv2.resize(quadro, (96, 96), interpolation=cv2.INTER_AREA).reshape(-1, 3))
+pixels = np.float32(np.concatenate(quadros))
+
+criterio = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
+cv2.setRNGSeed(7)
+_, rotulos, centros = cv2.kmeans(pixels, 10, None, criterio, 3, cv2.KMEANS_PP_CENTERS)
+parcelas = np.bincount(rotulos.ravel(), minlength=10) / len(rotulos)
+
+grupos = []
+for (b, g, r), parcela in zip(centros, parcelas):
+    h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+    grupos.append({"h": h, "s": s, "v": v, "parcela": float(parcela)})
+
+
+def pele_humana(grupo):
+    return grupo["h"] < 0.12 and grupo["s"] < 0.7
+
+
+candidatos = [g for g in grupos if g["s"] > 0.25 and g["v"] > 0.2 and not pele_humana(g)]
+if not candidatos:
+    sys.exit("Video sem cor dominante clara. Use paletas/escura.json.")
+base = max(candidatos, key=lambda g: g["s"] * g["v"] * g["parcela"] ** 0.3)
+
+
+def cor(h, s, v):
+    r, g, b = colorsys.hsv_to_rgb(h, s, v)
+    return "#%02x%02x%02x" % (round(r * 255), round(g * 255), round(b * 255))
+
+
+def contraste_com_branco(hexa):
+    canais = [int(hexa[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    r, g, b = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in canais]
+    return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05)
+
+
+h = base["h"]
+# O kit escreve texto branco sobre o destaque, entao ele precisa de contraste.
+valor_destaque = 0.82
+while contraste_com_branco(cor(h, min(base["s"], 0.65), valor_destaque)) < 4.5:
+    valor_destaque -= 0.02
+
+print(json.dumps({
+    "cores": {
+        "origem": "sugerida-do-video",
+        "fundo": cor(h, 0.45, 0.12),
+        "texto": cor(h, 0.05, 0.96),
+        "destaque": cor(h, min(base["s"], 0.65), valor_destaque),
+        "apoio": cor(h, 0.4, 0.9),
+        "acento2": cor(h, 0.15, 0.72),
+    }
+}, indent=2))
+PY

@@ -1,0 +1,3 @@
+[submodule ".claude/skills/reel"]
+	path = .claude/skills/reel
+	url = https://github.com/Felpborges/skill-reel

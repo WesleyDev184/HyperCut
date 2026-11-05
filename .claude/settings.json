@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"export HF_ROOT=\\\"$CLAUDE_PROJECT_DIR\\\"; source \\\"$CLAUDE_PROJECT_DIR/bin/ambiente.sh\\\"\" >> \"$CLAUDE_ENV_FILE\""
+          }
+        ]
+      }
+    ]
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  }
+}
