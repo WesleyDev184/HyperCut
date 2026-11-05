@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="tamanho" content="1200x620">
+<title>Fluxo do som</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .palco { width: 1200px; height: 620px; }
+  .titulo { position: absolute; left: 48px; top: 32px; }
+  .degrau { position: absolute; width: 400px; height: 88px; display: flex; flex-direction: column; justify-content: center; line-height: 1.18; font-size: 21px; }
+  .degrau small { margin-top: 2px; }
+  .desce { position: absolute; left: 76px; color: var(--apagado); font-size: 17px; }
+  .destino { position: absolute; left: 498px; top: 262px; width: 190px; height: 136px; display: flex; flex-direction: column; justify-content: center; }
+  .destino code { font-size: 19px; }
+  .ponto { position: absolute; left: 498px; top: 126px; width: 190px; height: 104px; display: flex; flex-direction: column; justify-content: center; }
+  .ponto code { font-size: 17px; }
+  .painel { position: absolute; left: 730px; top: 126px; width: 422px; height: 442px; padding: 22px 24px; background: #0f120b; border: 1px solid var(--linha); border-radius: 3px; }
+  .painel h3 { font-size: 23px; font-weight: 700; margin-bottom: 2px; }
+  .painel > small { display: block; color: var(--apagado); font-size: 17px; margin-bottom: 16px; }
+  .nivel { display: grid; grid-template-columns: 156px 1fr 66px; align-items: center; gap: 10px; height: 54px; font-size: 19px; }
+  .nivel div { height: 13px; background: #2a2f20; border-radius: 2px; }
+  .nivel div i { display: block; height: 100%; background: var(--verde); border-radius: 2px; }
+  .nivel span:last-child { text-align: right; color: var(--apagado); font-size: 18px; }
+  .master { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--linha); font-size: 21px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="palco">
+  <div class="titulo">
+    <h2>Som certo, no ponto certo, no nível certo</h2>
+    <p class="sub">Primeiro o som gravado e local. Só desce um degrau quando o de cima não serve.</p>
+  </div>
+
+  <svg class="fios" viewBox="0 0 1200 620" fill="none">
+    <defs><marker id="p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7bb289"/></marker></defs>
+    <g stroke="#7bb289" stroke-width="2.5">
+      <path d="M112 214V240" marker-end="url(#p)"/>
+      <path d="M112 332V358" marker-end="url(#p)"/>
+      <path d="M112 450V476" marker-end="url(#p)"/>
+      <path d="M448 170H472V330H494" marker-end="url(#p)"/>
+      <path d="M448 288H472"/><path d="M448 406H472"/><path d="M448 524H472V330"/>
+      <path d="M593 230V258" marker-end="url(#p)"/>
+      <path d="M690 330H726" marker-end="url(#p)"/>
+    </g>
+  </svg>
+
+  <div class="degrau clipe" style="left:48px;top:126px">Kit local<small>109 sons CC0, sem rede</small></div>
+  <div class="degrau clipe" style="left:48px;top:244px">Openverse<small>som gravado, só CC0 e CC BY</small></div>
+  <div class="degrau clipe" style="left:48px;top:362px">Banco do earshot<small>252 sons gerados por código</small></div>
+  <div class="degrau clipe" style="left:48px;top:480px">Forjar<small>variação nova de uma receita</small></div>
+
+  <div class="ponto clipe"><code>sons/sons momentos</code><small>rascunho dos pontos</small></div>
+
+  <div class="destino clipe"><code>assets/sfx/</code><small>pico em −3 dBFS, crédito em CREDITOS.md</small></div>
+
+  <div class="painel">
+    <h3>Alvos medidos no MP4 final</h3>
+    <small>Efeitos: quantos dB abaixo do pico da voz</small>
+    <div class="nivel"><span>Passagens</span><div><i style="width:62.5%"></i></div><span>−9 dB</span></div>
+    <div class="nivel"><span>Cliques, impactos</span><div><i style="width:58.3%"></i></div><span>−10 dB</span></div>
+    <div class="nivel"><span>Riser</span><div><i style="width:41.7%"></i></div><span>−14 dB</span></div>
+    <div class="nivel"><span>Teclas</span><div><i style="width:33.3%"></i></div><span>−16 dB</span></div>
+    <div class="master">Voz −14 LUFS. Música cerca de 10 LU abaixo. Master −14 LUFS, até −1 dBTP.</div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="tamanho" content="1200x650">
+<title>Fluxo de um vídeo</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .palco { width: 1200px; height: 650px; }
+  .titulo { position: absolute; left: 48px; top: 34px; }
+  .trilha { position: absolute; left: 48px; right: 48px; height: 104px; display: flex; align-items: stretch; gap: 10px; }
+  .nome { width: 142px; flex: none; display: flex; flex-direction: column; justify-content: center; font-size: 24px; font-weight: 700; }
+  .nome small { color: var(--apagado); font-size: 17px; font-weight: 400; }
+  .clipe { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; font-size: 20px; line-height: 1.2; }
+  .clipe small { margin-top: 3px; line-height: 1.2; }
+  .clipe code { font-size: 18px; }
+  .aviso { position: absolute; font-size: 19px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="palco">
+  <div class="titulo">
+    <h2>Do pedido ao MP4</h2>
+    <p class="sub">Quatro trilhas, lidas de cima para baixo. O render só começa depois que você aprova.</p>
+  </div>
+
+  <svg class="fios" viewBox="0 0 1200 650" fill="none">
+    <defs>
+      <marker id="p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7bb289"/></marker>
+      <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d97e63"/></marker>
+    </defs>
+    <g stroke="#7bb289" stroke-width="2.5">
+      <path d="M1140 186V203H214V216" marker-end="url(#p)"/>
+      <path d="M1140 318V335H214V348" marker-end="url(#p)"/>
+      <path d="M1140 450V467H214V480" marker-end="url(#p)"/>
+    </g>
+  </svg>
+
+  <div class="trilha" style="top:120px;height:66px">
+    <div class="nome">Planejar</div>
+    <div class="clipe"><code>bin/novo-video</code></div>
+    <div class="clipe">BRIEF.md</div>
+    <div class="clipe">Reunir material</div>
+    <div class="clipe">SPEC.md</div>
+  </div>
+
+  <div class="trilha" style="top:218px;height:100px">
+    <div class="nome">Construir</div>
+    <div class="clipe">Preparar mídia<small>de brutos/ para assets/</small></div>
+    <div class="clipe">Buscar bloco pronto<small>registry, cerca de 450</small></div>
+    <div class="clipe">Compor cenas<small>HTML e GSAP</small></div>
+    <div class="clipe">Voz, legenda e som<small>skills e sons/sons</small></div>
+  </div>
+
+  <div class="trilha" style="top:350px;height:100px">
+    <div class="nome">Conferir</div>
+    <div class="clipe"><code>hf check</code><small>zero erros</small></div>
+    <div class="clipe"><code>hf snapshot</code><small>o agente olha os quadros</small></div>
+    <div class="clipe ouro">Você aprova<small style="color:#e4cf8e">no preview, antes do render</small></div>
+  </div>
+
+  <div class="trilha" style="top:482px;height:100px">
+    <div class="nome">Entregar</div>
+    <div class="clipe"><code>hf render</code><small>draft, looks, delivery</small></div>
+    <div class="clipe"><code>ffprobe</code><small>duração bate</small></div>
+    <div class="clipe">Medir mixagem<small>−14 LUFS, −1 dBTP</small></div>
+    <div class="clipe">REVIEW.md<small>decisões e fontes</small></div>
+  </div>
+
+  <div class="aviso" style="left:200px;top:598px;color:var(--alerta)">Achou defeito em qualquer conferência: corrige, confere de novo e só então segue.</div>
+</div>
+</body>
+</html>

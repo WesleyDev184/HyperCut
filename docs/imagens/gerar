@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Gera os PNG do README a partir de fontes/*.html, com o Chrome de render da pasta.
+# Uso: docs/imagens/gerar [nome]   (sem nome, gera todas)
+# O tamanho de cada imagem vem de <meta name="tamanho" content="LxA"> no HTML.
+set -euo pipefail
+
+AQUI="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+source "$AQUI/../../bin/ambiente.sh"
+[ -x "${CHROME:-}" ] || { echo "Chrome nao encontrado: rode bin/hf browser ensure" >&2; exit 1; }
+
+for html in "$AQUI"/fontes/${1:-*}.html; do
+  nome="$(basename "$html" .html)"
+  tamanho="$(sed -n 's/.*name="tamanho" content="\([0-9]*x[0-9]*\)".*/\1/p' "$html")"
+  "$CHROME" --headless --no-sandbox --disable-gpu --hide-scrollbars \
+    --force-device-scale-factor=2 --virtual-time-budget=6000 \
+    --window-size="${tamanho/x/,}" --screenshot="$AQUI/$nome.png" "file://$html" 2>/dev/null
+  echo "$nome.png ($tamanho, 2x)"
+done

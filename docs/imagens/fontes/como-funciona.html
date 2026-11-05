@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="tamanho" content="1200x610">
+<title>Como o HyperCut funciona</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .palco { width: 1200px; height: 610px; }
+  .titulo { position: absolute; left: 48px; top: 36px; }
+  .peca { position: absolute; }
+  .fala { left: 48px; top: 196px; width: 240px; height: 226px; padding: 18px 20px; border-radius: 3px; background: #2a2613; border: 1px solid var(--ouro); font-size: 22px; font-weight: 500; }
+  .fala small { display: block; margin-bottom: 8px; color: var(--ouro); font-size: 18px; font-weight: 600; }
+  .agente { left: 340px; top: 196px; width: 206px; height: 226px; padding: 18px 20px; background: var(--cartao); border: 1px solid var(--linha); border-radius: 3px; }
+  .agente b { display: block; font-size: 25px; margin-bottom: 8px; }
+  .agente span { color: var(--apagado); font-size: 18px; display: block; line-height: 1.32; }
+  .bloco { left: 604px; width: 318px; }
+  .bloco b { display: block; font-size: 22px; }
+  .bloco span { display: block; font-weight: 400; color: var(--apagado); font-size: 18px; line-height: 1.32; }
+  .saida { left: 972px; top: 196px; width: 186px; height: 226px; padding: 16px 18px; background: #0f120b; border: 1px solid var(--verde); border-radius: 3px; }
+  .saida code { display: block; color: var(--apagado); font-size: 15px; line-height: 1.5; }
+  .saida b { display: block; margin-top: 12px; color: var(--verde); font-size: 26px; }
+  .volta { left: 318px; top: 544px; width: 620px; text-align: center; color: var(--ouro); font-size: 20px; font-weight: 600; background: var(--fundo); }
+</style>
+</head>
+<body>
+<div class="palco">
+  <div class="titulo">
+    <h2>Regras e ferramentas prontas em volta do agente</h2>
+    <p class="sub">O agente não improvisa o processo: ele lê as regras, chama as skills e usa o ambiente da pasta.</p>
+  </div>
+
+  <svg class="fios" viewBox="0 0 1200 610" fill="none">
+    <defs>
+      <marker id="p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7bb289"/></marker>
+      <marker id="o" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c9a84c"/></marker>
+    </defs>
+    <g stroke="#7bb289" stroke-width="2.5">
+      <path d="M290 309H336" marker-end="url(#p)"/>
+      <path d="M548 309H574"/>
+      <path d="M574 178V444"/>
+      <path d="M574 178H600" marker-end="url(#p)"/>
+      <path d="M574 309H600" marker-end="url(#p)"/>
+      <path d="M574 444H600" marker-end="url(#p)"/>
+      <path d="M924 178H946V444H924"/>
+      <path d="M946 309H968" marker-end="url(#p)"/>
+    </g>
+    <path d="M1065 424V556H168V426" stroke="#c9a84c" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#o)"/>
+  </svg>
+
+  <div class="peca fala"><small>Você</small>Crie um vídeo vertical de 20 segundos apresentando meu produto.</div>
+
+  <div class="peca agente"><b>Seu agente</b><span>Claude Code, OpenCode, Codex, Cursor, Gemini CLI, Copilot e outros</span></div>
+
+  <div class="peca bloco clipe" style="top:128px"><b>Regras</b><span><code>AGENTS.md</code> diz como trabalhar, <code>PRODUCAO.md</code> diz o que é bom</span></div>
+  <div class="peca bloco clipe" style="top:244px"><b>Skills</b><span>reel, legendas, som, mixagem, análise de referência e tratamento de bruto</span></div>
+  <div class="peca bloco clipe" style="top:382px"><b>Ambiente</b><span>HyperFrames, FFmpeg, Chrome, Whisper e Python, tudo dentro da pasta</span></div>
+
+  <div class="peca saida"><code>projetos/&lt;nome&gt;/</code><code>index.html</code><code>assets/</code><b>MP4</b></div>
+
+  <div class="peca volta">Você revê no preview, pede ajustes e aprova o render</div>
+</div>
+</body>
+</html>

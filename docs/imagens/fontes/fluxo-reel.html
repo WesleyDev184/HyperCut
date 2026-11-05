@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="tamanho" content="1200x570">
+<title>Fluxo do reel</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .palco { width: 1200px; height: 570px; }
+  .titulo { position: absolute; left: 48px; top: 32px; }
+  .rotulo { position: absolute; left: 48px; width: 170px; font-size: 21px; font-weight: 700; }
+  .rotulo small { display: block; color: var(--apagado); font-size: 17px; font-weight: 400; }
+  canvas { position: absolute; left: 226px; }
+  .legenda { position: absolute; left: 226px; top: 298px; display: flex; gap: 24px; font-size: 18px; color: var(--apagado); }
+  .legenda i { display: inline-block; width: 15px; height: 15px; margin-right: 7px; border-radius: 2px; vertical-align: -2px; }
+  .etapas { position: absolute; left: 48px; right: 48px; top: 362px; display: flex; gap: 26px; }
+  .etapas .clipe { flex: 1 1 0; min-width: 0; height: 132px; font-size: 21px; line-height: 1.15; }
+  .etapas .clipe small { margin-top: 6px; line-height: 1.26; }
+  svg.fios { z-index: 2; }
+  .fim { position: absolute; left: 48px; top: 512px; color: var(--apagado); font-size: 19px; }
+  .fim code { color: var(--verde); }
+</style>
+</head>
+<body>
+<div class="palco">
+  <div class="titulo">
+    <h2>Gravação bruta entra, reel 9:16 sai</h2>
+    <p class="sub">Para quem grava falando para a câmera. Escolhas de corte e edição ficam com o agente.</p>
+  </div>
+
+  <div class="rotulo" style="top:136px">Bruto<small>pausas, erros e retomadas</small></div>
+  <canvas id="bruto" width="1852" height="150" style="top:128px;width:926px;height:75px"></canvas>
+  <div class="rotulo" style="top:228px">Depois do corte<small>só a fala</small></div>
+  <canvas id="limpo" width="1852" height="130" style="top:222px;width:926px;height:65px"></canvas>
+  <div class="legenda">
+    <span><i style="background:#7bb289"></i>fala que fica</span>
+    <span><i style="background:#d97e63"></i>silêncio, respiração, "éé", gaguejo, tomada repetida</span>
+  </div>
+
+  <svg class="fios" viewBox="0 0 1200 570" fill="none">
+    <defs><marker id="p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7bb289"/></marker></defs>
+    <g stroke="#7bb289" stroke-width="2.5">
+      <path d="M249 428H271" marker-end="url(#p)"/><path d="M475 428H497" marker-end="url(#p)"/>
+      <path d="M701 428H723" marker-end="url(#p)"/><path d="M927 428H949" marker-end="url(#p)"/>
+    </g>
+  </svg>
+
+  <div class="etapas" id="etapas">
+    <div class="clipe">Cortar<small>fica a última tomada completa de cada frase</small></div>
+    <div class="clipe">Conferir<small>nenhuma palavra comida, pausa até 0,25 s</small></div>
+    <div class="clipe ouro">Escolher paleta<small style="color:#e4cf8e">sem resposta, fica a escura</small></div>
+    <div class="clipe">Montar<small>câmera, legenda e peças de interface na palavra</small></div>
+    <div class="clipe">Verificar<small>rosto livre, zona segura, −14 LUFS</small></div>
+  </div>
+  <div class="fim">Sai <code>render/reel-v1.mp4</code>. Cada ajuste pedido vira uma nova versão, e as anteriores ficam guardadas.</div>
+</div>
+<script>
+  // Onda gerada com semente fixa: a imagem sai igual a cada geração.
+  let semente = 184;
+  const sorte = () => (semente = (semente * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const trechos = [["f",16],["c",7],["f",22],["c",4],["f",11],["c",10],["f",24],["c",5],["f",18],["c",8],["f",14],["c",12],["f",20],["c",4],["f",15]];
+  const fala = () => .35 + sorte() * .65, resto = () => .05 + sorte() * .14;
+  const barras = trechos.flatMap(([t, n]) => Array.from({ length: n }, () => ({ t, a: t === "f" ? fala() : resto() })));
+  function desenhar(id, lista, passo) {
+    const tela = document.getElementById(id), g = tela.getContext("2d"), meio = tela.height / 2;
+    lista.forEach((b, i) => {
+      const h = Math.max(6, b.a * tela.height * .92);
+      g.fillStyle = b.t === "f" ? "#7bb289" : "#d97e63";
+      g.fillRect(i * passo, meio - h / 2, passo * .62, h);
+    });
+  }
+  desenhar("bruto", barras, 1852 / barras.length);
+  desenhar("limpo", barras.filter(b => b.t === "f"), 1852 / barras.length);
+</script>
+</body>
+</html>

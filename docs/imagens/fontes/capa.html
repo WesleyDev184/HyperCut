@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="tamanho" content="1200x490">
+<title>Capa do HyperCut</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .palco { width: 1200px; height: 490px; }
+  .marca {
+    position: absolute; left: 56px; top: 34px;
+    display: flex; font-size: 148px; font-weight: 800; letter-spacing: -.035em; line-height: 1;
+  }
+  .marca span:last-child { margin-left: 44px; color: var(--verde); }
+  .frase { position: absolute; left: 748px; top: 62px; width: 400px; font-size: 33px; font-weight: 500; line-height: 1.16; }
+  .frase em { display: block; }
+  .frase em { font-style: normal; color: var(--apagado); }
+
+  /* A agulha corta a marca e separa o código, à esquerda, do vídeo, à direita. */
+  #agulha { position: absolute; top: 18px; bottom: 0; width: 4px; background: var(--ouro); }
+  #agulha::before {
+    content: ""; position: absolute; left: -11px; top: -2px;
+    border-left: 13px solid transparent; border-right: 13px solid transparent; border-top: 18px solid var(--ouro);
+  }
+
+  .faixa { position: absolute; left: 0; right: 0; top: 206px; height: 284px; background: #0f120b; border-top: 1px solid var(--linha); }
+  .codigo { position: absolute; left: 56px; top: 24px; font-family: "JetBrains Mono", monospace; font-size: 17.5px; line-height: 1.62; color: var(--apagado); white-space: pre; }
+  .codigo b { color: var(--verde); font-weight: 400; }
+  .codigo i { color: var(--ouro); font-style: normal; }
+  .codigo u { color: var(--texto); text-decoration: none; }
+
+  .quadros { position: absolute; top: 20px; display: flex; gap: 8px; }
+  .quadro { position: relative; width: 104px; height: 200px; background: var(--fundo); border: 1px solid var(--linha); border-radius: 3px; overflow: hidden; }
+  .quadro p { position: absolute; left: 10px; right: 8px; font-size: 20px; font-weight: 800; line-height: 1.02; letter-spacing: -.01em; }
+  .quadro .barra { position: absolute; left: 10px; height: 5px; background: var(--verde); }
+  .quadro .botao { position: absolute; left: 10px; right: 10px; bottom: 16px; height: 26px; border-radius: 3px; background: var(--verde); }
+  .quadro .bola { position: absolute; border-radius: 50%; background: var(--ouro); }
+  .regua { position: absolute; top: 234px; display: flex; gap: 8px; color: var(--apagado); font-size: 15px; font-family: "JetBrains Mono", monospace; }
+  .regua span { width: 104px; border-left: 1px solid var(--linha); padding-left: 6px; }
+</style>
+</head>
+<body>
+<div class="palco">
+  <h1 class="marca"><span id="hyper">Hyper</span><span>Cut</span></h1>
+  <p class="frase">Você pede em português. <em>O agente entrega o MP4.</em></p>
+
+  <div class="faixa">
+    <div class="codigo">&lt;<b>div</b> id=<i>"titulo"</i>
+     data-start=<i>"0"</i>
+     data-duration=<i>"4"</i>&gt;
+  <u>Seu produto em 20 segundos</u>
+&lt;/<b>div</b>&gt;
+&lt;<b>audio</b> src=<i>"assets/audio/voz.wav"</i>
+       data-track-index=<i>"20"</i>&gt;</div>
+
+    <div class="quadros" id="quadros">
+      <div class="quadro"><div class="barra" style="top:92px;width:24px"></div></div>
+      <div class="quadro"><div class="barra" style="top:66px;width:70px"></div><p style="top:76px;opacity:.55">Seu</p></div>
+      <div class="quadro"><div class="barra" style="top:48px;width:70px"></div><p style="top:58px">Seu produto</p></div>
+      <div class="quadro"><div class="barra" style="top:38px;width:70px"></div><p style="top:48px">Seu produto em 20 s</p><div class="bola" style="width:24px;height:24px;right:12px;bottom:40px"></div></div>
+      <div class="quadro"><div class="barra" style="top:30px;width:70px"></div><p style="top:40px">Seu produto em 20 s</p><div class="bola" style="width:34px;height:34px;right:8px;bottom:50px"></div><div class="botao" style="right:50px"></div></div>
+      <div class="quadro"><div class="barra" style="top:30px;width:84px"></div><p style="top:40px">Seu produto em 20 s</p><div class="bola" style="width:40px;height:40px;right:6px;bottom:50px"></div><div class="botao"></div></div>
+    </div>
+    <div class="regua" id="regua"><span>00:00</span><span>00:04</span><span>00:08</span><span>00:12</span><span>00:16</span><span>00:20</span></div>
+  </div>
+  <div id="agulha"></div>
+</div>
+<script>
+  // A agulha fica no vão entre "Hyper" e "Cut"; os quadros começam logo depois dela.
+  const fim = document.getElementById("hyper").getBoundingClientRect().right;
+  const x = Math.round(fim + 2);
+  document.getElementById("agulha").style.left = x + "px";
+  const direita = 1200 - 28 - (6 * 104 + 5 * 8);
+  for (const id of ["quadros", "regua"]) document.getElementById(id).style.left = direita + "px";
+</script>
+</body>
+</html>

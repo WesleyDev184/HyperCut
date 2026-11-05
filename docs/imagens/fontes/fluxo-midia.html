@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="tamanho" content="1200x400">
+<title>Caminho da mídia</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .palco { width: 1200px; height: 400px; }
+  .titulo { position: absolute; left: 48px; top: 32px; }
+  .parada { position: absolute; top: 138px; width: 192px; height: 118px; }
+  .parada code { display: block; font-size: 21px; font-weight: 600; color: var(--texto); margin-bottom: 4px; }
+  .fora { position: absolute; left: 48px; top: 306px; width: 192px; height: 62px; display: flex; align-items: center; padding: 0 14px; color: var(--alerta); }
+  .fora code { color: var(--alerta); font-size: 21px; font-weight: 600; }
+  .nota { position: absolute; left: 268px; top: 324px; color: var(--apagado); font-size: 20px; }
+  .nota b { color: var(--alerta); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="palco">
+  <div class="titulo">
+    <h2>A mídia anda num sentido só</h2>
+    <p class="sub">O original nunca é editado. Refazer um asset é rodar o script de novo.</p>
+  </div>
+  <svg class="fios" viewBox="0 0 1200 400" fill="none">
+    <defs><marker id="p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7bb289"/></marker></defs>
+    <g stroke="#7bb289" stroke-width="2.5">
+      <path d="M242 197H272" marker-end="url(#p)"/><path d="M470 197H500" marker-end="url(#p)"/>
+      <path d="M698 197H728" marker-end="url(#p)"/><path d="M926 197H956" marker-end="url(#p)"/>
+    </g>
+  </svg>
+  <div class="parada clipe" style="left:48px"><code>brutos/</code><small>como foi recebido, nunca editado</small></div>
+  <div class="parada clipe" style="left:276px"><code>tools/</code><small>scripts que tratam a mídia</small></div>
+  <div class="parada clipe" style="left:504px"><code>assets/</code><small>só o que o vídeo usa, já tratado</small></div>
+  <div class="parada clipe" style="left:732px"><code>index.html</code><small>composição e cenas</small></div>
+  <div class="parada clipe" style="left:960px"><code>renders/</code><small>os MP4 finais</small></div>
+  <div class="fora clipe alerta"><code>referencias/</code></div>
+  <div class="nota"><b>Nunca entra no vídeo.</b> Inspiração fica fora da composição, que só aponta para <code>assets/</code>.</div>
+</div>
+</body>
+</html>
