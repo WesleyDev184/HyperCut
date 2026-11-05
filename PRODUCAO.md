@@ -38,6 +38,7 @@ Valem para todo vídeo, salvo pedido contrário no `BRIEF.md`.
 - Todo movimento tem aceleração e desaceleração. Nada em velocidade constante.
 - Use antecipação antes de movimentos importantes e ultrapassagem sutil quando fizer sentido.
 - Nas pausas de leitura, só movimento discreto. Sem cena totalmente imóvel.
+- Títulos, cartões e textos que já pousaram ficam cravados em coordenadas inteiras: nunca aplique flutuação lenta (`x`/`y`), micro-escala (`scale`) ou rotação lenta sobre elementos com texto ou borda fina, pois isso gera tremor de subpixel quadro a quadro. O movimento contínuo fica no fundo, em barras internas, traçados SVG ou cursores.
 - Crie profundidade com escala, desfoque e paralaxe.
 - Desfoque de movimento só durante o movimento: quadro parado e desfocado é erro.
 - Nunca desfoque palavra que precisa ser lida.
@@ -121,7 +122,8 @@ Meça voz, música e master com o filtro `ebur128` do FFmpeg. Limitador só se u
 ## Verificação
 
 - Antes do render final, gere prancha de quadros de cada cena e confira pose, continuidade,
-  enquadramento, luz e clareza.
+  enquadramento, luz, clareza e posicionamento: revise se os componentes permanecem estáveis sem
+  tremor entre quadros e se nenhuma linha, borda ou cursor atravessa textos.
 - Depois do render, inspecione quadros reais, inclusive os dois lados de cada corte.
 - Confira duração, resolução, sincronia de som e imagem, LUFS e pico.
 - Achou um defeito: procure o mesmo tipo de defeito no vídeo inteiro antes de corrigir.
