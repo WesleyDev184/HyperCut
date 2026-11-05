@@ -1,0 +1,23 @@
+name: Melhoria
+description: Sugira uma ferramenta, skill, regra ou mudança na documentação
+labels: [enhancement]
+body:
+  - type: textarea
+    id: necessidade
+    attributes:
+      label: O que falta hoje
+      description: O que você tentou fazer e onde o fluxo atual não ajuda.
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta
+      description: Como deveria funcionar.
+    validations:
+      required: true
+  - type: textarea
+    id: licenca
+    attributes:
+      label: Material de terceiros
+      description: Se a proposta usa ferramenta, skill ou mídia de terceiros, informe a origem e a licença.

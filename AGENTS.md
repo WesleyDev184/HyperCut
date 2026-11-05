@@ -31,8 +31,12 @@ HyperCut/
 ├── README.md          apresentação do projeto
 ├── INSTALACAO.md      instalação do zero, configuração por agente, GPU e problemas conhecidos
 ├── TERCEIROS.md       licenças do que vem de terceiros
+├── CONTRIBUTING.md    como contribuir
+├── SECURITY.md        como relatar falha de segurança
+├── CODE_OF_CONDUCT.md código de conduta
 ├── requirements-venv.txt  versões exatas de `.venv/`
 ├── package.json       versão fixa do hyperframes; FFmpeg e FFprobe do npm só como reserva
+├── .github/           modelos de issue e de pull request
 ├── .claude/           skills do projeto e hook que carrega o ambiente na Claude Code
 ├── .agents/skills     link para `.claude/skills`, para os demais agentes
 ├── .cache/            Chrome, whisper, TTS, fontes, histórico, dependências da skill reel e earshot

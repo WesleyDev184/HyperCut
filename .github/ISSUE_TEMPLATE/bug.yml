@@ -1,0 +1,49 @@
+name: Problema
+description: Algo não funciona como a documentação diz
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Não anexe cookies, tokens, dados pessoais nem gravações de outras pessoas.
+  - type: textarea
+    id: problema
+    attributes:
+      label: O que aconteceu
+      description: O que você esperava e o que aconteceu no lugar.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      description: Pedido feito ao agente ou comandos, em ordem.
+      placeholder: |
+        1. bin/novo-video teste
+        2. ../../bin/hf check --json
+    validations:
+      required: true
+  - type: textarea
+    id: saida
+    attributes:
+      label: Saída do comando
+      description: Erro ou log, sem dados sensíveis.
+      render: shell
+  - type: input
+    id: agente
+    attributes:
+      label: Agente e modelo
+      placeholder: OpenCode com ...
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema e GPU
+      placeholder: Ubuntu 24.04, RTX 4060
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit do HyperCut
+      description: Saída de `git rev-parse --short HEAD`.
+    validations:
+      required: true

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Falha de segurança
+    url: https://github.com/WesleyDev184/HyperCut/security/advisories/new
+    about: Relate de forma privada, nunca em issue pública.
+  - name: Problema no HyperFrames
+    url: https://github.com/heygen-com/hyperframes/issues
+    about: Falha do próprio HyperFrames vai para o projeto original.
