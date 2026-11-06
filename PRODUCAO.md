@@ -39,6 +39,8 @@ Valem para todo vídeo, salvo pedido contrário no `BRIEF.md`.
 - Use antecipação antes de movimentos importantes e ultrapassagem sutil quando fizer sentido.
 - Nas pausas de leitura, só movimento discreto. Sem cena totalmente imóvel.
 - Títulos, cartões e textos que já pousaram ficam cravados em coordenadas inteiras: nunca aplique flutuação lenta (`x`/`y`), micro-escala (`scale`) ou rotação lenta sobre elementos com texto ou borda fina, pois isso gera tremor de subpixel quadro a quadro. O movimento contínuo fica no fundo, em barras internas, traçados SVG ou cursores.
+- Nunca aplique zoom lento (`scale`) sobre imagem estática (`<img>`), pois a reamostragem quadro a quadro treme. Em tela cheia, use deslocamento lateral leve (`x`) com sobra nas bordas ou pré-renderize o zoom em vídeo.
+- Quando um elemento permanece na mesma posição entre dois cortes seguidos (como o primeiro painel de um layout duplo), mantenha-o imóvel e anime apenas a entrada do elemento novo.
 - Crie profundidade com escala, desfoque e paralaxe.
 - Desfoque de movimento só durante o movimento: quadro parado e desfocado é erro.
 - Nunca desfoque palavra que precisa ser lida.
@@ -67,6 +69,7 @@ Valem para todo vídeo, salvo pedido contrário no `BRIEF.md`.
 - A cada 2 ou 3 blocos, destaque 1 ou 2 palavras importantes. Nunca dois destaques seguidos
   nem destaque em artigo, preposição ou conjunção.
 - Legenda nunca cobre rosto nem conteúdo importante.
+- Ao derivar versão 9:16 de um projeto 16:9 (ou vice-versa), reaproveite o mesmo mapa de tempos e cortes e troque apenas o layout geométrico: lado a lado vira empilhado e grades horizontais viram verticais, respeitando as zonas seguras (topo `>= 130 px`, base `>= 185 px`). Nunca adapte cortando as laterais do 16:9.
 
 ## Personagens
 
@@ -92,13 +95,15 @@ Valem para todo vídeo, salvo pedido contrário no `BRIEF.md`.
 - O efeito cai em `assets/sfx/` com pico em -3 dBFS: ajuste o volume na composição para a tabela abaixo.
 - Crédito de som CC BY, listado em `assets/sfx/CREDITOS.md`, sai junto com o vídeo publicado.
 - Um efeito por evento visual relevante. Sem efeito em troca de layout, deslocamento suave ou zoom.
-- Som de passagem coincide com o meio do movimento: no máximo 1 por trecho e 3 no vídeo.
+- Som de passagem coincide com o meio do movimento: no máximo 1 por trecho/bloco (até 3 em vídeos curtos de até 90 s; em vídeos longos divididos em capítulos, no máximo 1 por capítulo).
 - Sem narração, a música fica abaixo dos efeitos para a ação ser ouvida.
-- Com narração, a música não tem melodia que dispute com a fala nem automação de volume.
+- Com narração, a música não tem melodia que dispute com a fala nem automação de volume; na síntese, concentre fundamentais e harmônicos abaixo de `600 Hz`, deixando a faixa de inteligibilidade da voz (`800–3000 Hz`) livre.
 - Voz gerada tem plano em `roteiro/`: ritmo, curva de energia, pausas e palavras de ênfase por trecho.
   "Natural" ou "expressivo" não é direção.
+- Em voz gerada (TTS), escreva URLs, siglas e termos compostos de forma fonética no script de locução (`"cria gestão ponto com"`), mantendo a grafia oficial nos textos de tela e nas legendas.
 - Gere primeiro o trecho mais difícil da voz e mostre a quem pediu. O resto só depois da aprovação.
   Mudou voz, modelo ou velocidade: nova amostra.
+- Quando uma gravação única for dividida em blocos ou episódios, normalize o áudio inteiro em duas passadas (`loudnorm` linear) antes de fatiar. Para cortar entre blocos, use o timestamp do Whisper só como referência e corte no meio do silêncio real medido com `silencedetect`.
 
 | Faixa | Nível |
 | --- | --- |
@@ -116,6 +121,9 @@ Meça voz, música e master com o filtro `ebur128` do FFmpeg. Limitador só se u
 
 - Cada quadro depende só do tempo. Aleatoriedade, só com semente fixa.
 - Todas as camadas terminam no mesmo ponto: sem quadro branco, imagem sobrando ou silêncio no fim.
+- Selos, cabeçalhos e marcas fixas de canto encerram seu `data-duration` no exato corte em que entra a cena de placar, resumo ou cartão final (CTA), sem sobrepor o fechamento.
+- Todo `.gif` ou clipe de `brutos/` é convertido em `tools/` para `.mp4` mudo (`30 fps`, `yuv420p`) em `assets/vid/`. Na composição, tags `<video>` ficam sempre no nível raiz (`#root`) com `data-start` e `data-duration` próprios, nunca aninhadas dentro de outra cena temporizada.
+- Em scripts de preparo (`tools/`), remova faixas pretas de capturas (`letterbox`) e limite a ampliação de imagens a no máximo `3,2x` do tamanho original (com Lanczos). Imagem pequena fica menor no painel em vez de estourar borrada.
 - Com voz e música, entregue também as faixas em WAV com a duração completa, para remixar depois.
 - Dependência nova é instalada nesta pasta, nunca no sistema.
 
