@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: analisa-carrossel-local
+expected_outcome: |
+  Gera relatório e prancha local e analisa proporção, paleta, estrutura das lâminas e legenda.

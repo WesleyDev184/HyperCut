@@ -1,0 +1,610 @@
+#!/usr/bin/env bash
+# Valida e renderiza um projeto de post ou carrossel em renders/<prefixo>-<slug>/ junto com legenda.md.
+# Novas renderizacoes do mesmo conteudo reutilizam e atualizam a mesma pasta.
+# Uso: bin/render-post <projeto> [--slug <slug>] [--prefixo post|carrossel] [--slides <pasta>] [--legenda <arq>] [--checar] [--escala 1|2] [--sem-pdf] [--forcar] [--json]
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+source "$ROOT/bin/ambiente.sh"
+
+exec "$ROOT/.venv/bin/python" -I - "$ROOT" "$@" <<'PY'
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from PIL import Image, ImageDraw
+
+LIMITES_REDE = {
+    "youtube": {"max_chars": 5000, "gancho_max": 120, "ideal_min": 150, "ideal_max": 2000},
+    "instagram": {"max_chars": 2200, "gancho_max": 120, "ideal_min": 150, "ideal_max": 1200},
+    "linkedin": {"max_chars": 3000, "gancho_max": 140, "ideal_min": 400, "ideal_max": 1800},
+    "tiktok": {"max_chars": 4000, "gancho_max": 100, "ideal_min": 80, "ideal_max": 600},
+    "threads": {"max_chars": 500, "gancho_max": 120, "ideal_min": 100, "ideal_max": 450},
+    "x": {"max_chars": 280, "gancho_max": 120, "ideal_min": 60, "ideal_max": 260},
+    "pinterest": {"max_chars": 500, "gancho_max": 100, "ideal_min": 100, "ideal_max": 400},
+}
+
+TAGS_SPAM = {"#fyp", "#foryou", "#foryoupage", "#viral", "#instagood", "#like4like", "#follow4follow", "#explorepage"}
+SAUDACOES_VAZIAS = (
+    "olá", "ola ", "oi pessoal", "oi gente", "bom dia", "boa tarde", "boa noite",
+    "fala pessoal", "fala galera", "no post de hoje", "hoje vamos falar",
+)
+
+JS_AUDITORIA = r"""
+(() => {
+  const palco = document.querySelector('.palco') || document.body;
+  const pr = palco.getBoundingClientRect();
+  const W = pr.width || window.innerWidth;
+  const H = pr.height || window.innerHeight;
+
+  function parseRgba(str) {
+    const m = (str || '').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (!m) return [20, 23, 15, 1];
+    return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])];
+  }
+
+  function bgEfetivo(el) {
+    let cur = el;
+    while (cur && cur !== document.documentElement) {
+      const bg = getComputedStyle(cur).backgroundColor;
+      const [r, g, b, a] = parseRgba(bg);
+      if (a > 0.15) return [r, g, b];
+      cur = cur.parentElement;
+    }
+    return [20, 23, 15];
+  }
+
+  function lum([r, g, b]) {
+    const s = [r, g, b].map(v => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2];
+  }
+
+  function contraste(c1, c2) {
+    const l1 = lum(c1), l2 = lum(c2);
+    return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  }
+
+  const imagensQuebradas = [];
+  document.querySelectorAll('img').forEach(img => {
+    const src = img.getAttribute('src') || '';
+    if (!img.complete || img.naturalWidth === 0) imagensQuebradas.push(src);
+  });
+
+  const textos = [];
+  const seletores = 'h1, h2, h3, p, li, .selo, .cabecalho, .rodape, .cartao-titulo, .cartao-texto, .botao-cta';
+  document.querySelectorAll(seletores).forEach(el => {
+    const txt = (el.innerText || '').trim();
+    if (!txt) return;
+    const st = getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) === 0) return;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return;
+    const fg = parseRgba(st.color).slice(0, 3);
+    const bg = bgEfetivo(el);
+    const sangria = Boolean(el.closest('.sangria, [data-sangria]'));
+    textos.push({
+      tag: el.tagName.toLowerCase(),
+      classes: el.className || '',
+      texto: txt.slice(0, 120),
+      palavras: txt.split(/\s+/).filter(Boolean).length,
+      fontSize: parseFloat(st.fontSize) || 0,
+      textAlign: st.textAlign,
+      left: Math.round(r.left),
+      top: Math.round(r.top),
+      right: Math.round(r.right),
+      bottom: Math.round(r.bottom),
+      width: Math.round(r.width),
+      height: Math.round(r.height),
+      overflowX: el.scrollWidth > el.clientWidth + 4 && (st.overflowX === 'hidden' || st.overflow === 'hidden'),
+      overflowY: el.scrollHeight > el.clientHeight + 4 && (st.overflowY === 'hidden' || st.overflow === 'hidden'),
+      contraste: Number(contraste(fg, bg).toFixed(2)),
+      sangria
+    });
+  });
+
+  const tituloPrincipal = (document.querySelector('h1, .titulo-capa, .titulo')?.innerText || '').trim();
+  const totalPalavras = (palco.innerText || '').trim().split(/\s+/).filter(Boolean).length;
+
+  const out = document.createElement('script');
+  out.id = 'hf-post-audit';
+  out.type = 'application/json';
+  out.textContent = JSON.stringify({ W, H, tituloPrincipal, totalPalavras, imagensQuebradas, textos });
+  document.body.appendChild(out);
+})();
+"""
+
+
+def resolver_projeto(raiz: Path, arg: str) -> Path:
+    cand = Path(arg)
+    if cand.is_dir():
+        return cand.resolve()
+    for nome in (arg, f"post-{arg}", f"carrossel-{arg}"):
+        p = raiz / "projetos" / nome
+        if p.is_dir():
+            return p.resolve()
+    sys.exit(f"erro: projeto nao encontrado: {arg}")
+
+
+def extrair_slug_padrao(nome_pasta: str) -> str:
+    for pref in ("post-", "carrossel-", "video-", "reel-"):
+        if nome_pasta.startswith(pref) and len(nome_pasta) > len(pref):
+            return nome_pasta[len(pref):]
+    return nome_pasta
+
+
+def resolver_pasta_render(renders_base: Path, prefixo: str, slug: str) -> Path:
+    """Garante uma unica pasta por conteudo (<prefixo>-<slug>) em renders/, sem duplicar em re-renderizacoes."""
+    renders_base.mkdir(parents=True, exist_ok=True)
+    alvo = renders_base / f"{prefixo}-{slug}"
+    if alvo.is_dir():
+        return alvo
+    # Se o mesmo slug já existia com outro prefixo de post/carrossel, reaproveita renomeando para manter pasta única
+    for outro_pref in ("post", "carrossel"):
+        antigo = renders_base / f"{outro_pref}-{slug}"
+        if antigo.is_dir() and antigo != alvo:
+            antigo.rename(alvo)
+            return alvo
+    alvo.mkdir(parents=True, exist_ok=True)
+    return alvo
+
+
+def auditar_slide_dom(chrome: str, slide_path: Path, largura: int, altura: int) -> dict:
+    html = slide_path.read_text(encoding="utf-8")
+    injetado = html.replace("</body>", f"<script>{JS_AUDITORIA}</script></body>")
+    if "<script>" not in injetado:
+        injetado += f"<script>{JS_AUDITORIA}</script>"
+    with tempfile.NamedTemporaryFile("w", suffix=".html", dir=slide_path.parent, delete=False, encoding="utf-8") as tmp:
+        tmp.write(injetado)
+        tmp_path = Path(tmp.name)
+    try:
+        r = subprocess.run(
+            [
+                chrome, "--headless", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
+                "--force-device-scale-factor=1", "--virtual-time-budget=1200",
+                f"--window-size={largura},{altura}", "--dump-dom", f"file://{tmp_path}"
+            ],
+            capture_output=True, text=True, timeout=30
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    m = re.search(r'<script id="hf-post-audit" type="application/json">(.*?)</script>', r.stdout, re.S)
+    if not m:
+        return {}
+    try:
+        return json.loads(m.group(1))
+    except ValueError:
+        return {}
+
+
+def auditar_legenda(leg_path: Path, nomes_slides: list[str], titulo_capa: str) -> tuple[list[str], list[str], dict]:
+    erros, avisos = [], []
+    info = {
+        "arquivo": str(leg_path),
+        "titulo": "",
+        "titulo_chars": 0,
+        "rede": "instagram",
+        "caracteres": 0,
+        "gancho_chars": 0,
+        "hashtags": 0,
+        "alt_texts": 0,
+    }
+    if not leg_path.is_file():
+        erros.append(f"{leg_path.name} não encontrado.")
+        return erros, avisos, info
+
+    conteudo = leg_path.read_text(encoding="utf-8")
+    secoes = re.split(r"^##\s+", conteudo, flags=re.M)
+    mapa = {}
+    for sec in secoes[1:]:
+        linhas = sec.strip().splitlines()
+        if not linhas:
+            continue
+        chave = linhas[0].strip().lower()
+        corpo = "\n".join(linhas[1:]).strip()
+        mapa[chave] = corpo
+
+    # 0. Valida Título da publicação (obrigatório para YouTube, LinkedIn, Pinterest e identificação do post)
+    titulo_post = (mapa.get("título") or mapa.get("titulo") or "").splitlines()
+    titulo_str = titulo_post[0].strip() if titulo_post else ""
+    info["titulo"] = titulo_str
+    info["titulo_chars"] = len(titulo_str)
+    if not titulo_str:
+        erros.append(f"Legenda ({leg_path.name}): seção '## Título' obrigatória está vazia ou ausente.")
+    else:
+        if len(titulo_str) < 10:
+            erros.append(f"Legenda: '## Título' muito curto ({len(titulo_str)} caracteres; mínimo 10).")
+        elif len(titulo_str) > 100:
+            erros.append(f"Legenda: '## Título' tem {len(titulo_str)} caracteres (limite máximo do YouTube/Pinterest: 100).")
+        elif len(titulo_str) > 70:
+            avisos.append(f"Legenda: '## Título' tem {len(titulo_str)} caracteres (recomendado até 70 para não cortar no YouTube/celular).")
+        if "título direto com a promessa" in titulo_str.lower():
+            avisos.append("Legenda: '## Título' ainda está com o texto padrão do modelo.")
+
+    rede = (mapa.get("rede principal", "instagram").splitlines() or ["instagram"])[0].strip().lower()
+    if rede not in LIMITES_REDE:
+        avisos.append(f"Rede '{rede}' não reconhecida em {leg_path.name}; usando limites de instagram.")
+        rede = "instagram"
+    info["rede"] = rede
+    lim = LIMITES_REDE[rede]
+
+    legenda_bruta = mapa.get("legenda", "").strip()
+    if not legenda_bruta:
+        erros.append(f"Seção '## Legenda' está vazia em {leg_path.name}.")
+        return erros, avisos, info
+
+    paragrafos = [p.strip() for p in re.split(r"\n\s*\n", legenda_bruta) if p.strip()]
+    tags = re.findall(r"#[A-Za-zÀ-ÿ0-9_]+", legenda_bruta)
+    info["hashtags"] = len(tags)
+    info["caracteres"] = len(legenda_bruta)
+
+    primeira_linha = paragrafos[0].splitlines()[0].strip() if paragrafos else ""
+    info["gancho_chars"] = len(primeira_linha)
+
+    if len(primeira_linha) > lim["gancho_max"]:
+        avisos.append(
+            f"Legenda: 1ª linha (gancho) tem {len(primeira_linha)} caracteres "
+            f"(acima dos {lim['gancho_max']} visíveis antes do botão '...mais' no {rede})."
+        )
+    if len(primeira_linha) < 20:
+        erros.append(f"Legenda: 1ª linha muito curta ({len(primeira_linha)} caracteres). Escreva um gancho completo.")
+
+    low_gancho = primeira_linha.lower()
+    if any(low_gancho.startswith(s) for s in SAUDACOES_VAZIAS):
+        erros.append("Legenda: 1ª linha começa com saudação vazia. Comece direto pelo gancho, dado ou contraste.")
+
+    if titulo_capa and primeira_linha.lower().rstrip(".") == titulo_capa.lower().rstrip("."):
+        erros.append("Legenda: 1ª linha repete literalmente o título da Lâmina 01. Use um gancho complementar.")
+
+    if titulo_str and primeira_linha.lower().rstrip(".") == titulo_str.lower().rstrip("."):
+        avisos.append("Legenda: 1ª linha da legenda repete exatamente o '## Título'. Diferencie o título e o gancho.")
+
+    if len(legenda_bruta) > lim["max_chars"]:
+        erros.append(f"Legenda: {len(legenda_bruta)} caracteres excede o limite de {lim['max_chars']} do {rede}.")
+    elif len(legenda_bruta) < lim["ideal_min"]:
+        avisos.append(f"Legenda curta ({len(legenda_bruta)} caracteres; recomendado >= {lim['ideal_min']} no {rede}).")
+
+    for idx, p in enumerate(paragrafos, 1):
+        if p.startswith("#"):
+            continue
+        linhas_p = [l for l in p.splitlines() if not l.strip().startswith(("-", "•", "*")) and not re.match(r"^\d+\.", l.strip())]
+        palavras_p = len(" ".join(linhas_p).split())
+        if palavras_p > 50 or len(linhas_p) > 4:
+            avisos.append(f"Legenda: parágrafo {idx} tem {palavras_p} palavras ({len(linhas_p)} linhas). Quebre em blocos de 1 a 3 linhas.")
+
+    tags_lower = {t.lower() for t in tags}
+    spam_achado = sorted(tags_lower & TAGS_SPAM)
+    if spam_achado:
+        erros.append(f"Legenda: hashtags genéricas proibidas pelo PRODUCAO.md: {', '.join(spam_achado)}.")
+    if rede in ("instagram", "linkedin", "tiktok", "youtube"):
+        if len(tags) < 3:
+            avisos.append(f"Legenda: {len(tags)} hashtag(s) encontrada(s); o padrão pede de 3 a 5 hashtags específicas.")
+        elif len(tags) > 5:
+            if len(tags) > 8:
+                erros.append(f"Legenda: {len(tags)} hashtags (máximo permitido: 5 hashtags de nicho).")
+            else:
+                avisos.append(f"Legenda: {len(tags)} hashtags; reduza para 3 a 5 hashtags específicas.")
+
+    sec_alt = next((v for k, v in mapa.items() if "texto alternativo" in k or "alt text" in k), "")
+    alts_por_slide = {}
+    for linha in sec_alt.splitlines():
+        m = re.match(r"^-\s*(slide-\d+)(?:\.html)?:\s*(.+)$", linha.strip())
+        if m:
+            alts_por_slide[m.group(1)] = m.group(2).strip()
+    info["alt_texts"] = len(alts_por_slide)
+
+    for s_nome in nomes_slides:
+        chave = Path(s_nome).stem
+        txt_alt = alts_por_slide.get(chave, "")
+        if not txt_alt:
+            erros.append(f"Legenda: falta Texto Alternativo (Alt Text) para '{chave}' em {leg_path.name}.")
+        elif "Descrição objetiva do visual e do texto central" in txt_alt:
+            avisos.append(f"Legenda: Alt Text de '{chave}' ainda está com o texto padrão do modelo.")
+        elif len(txt_alt) > 140:
+            avisos.append(f"Legenda: Alt Text de '{chave}' tem {len(txt_alt)} caracteres (recomendado até 125).")
+
+    return erros, avisos, info
+
+
+def montar_prancha(pasta_render: Path, pngs: list[Path], largura: int, altura: int) -> Path:
+    escala_thumb = 320 / largura
+    tw = int(round(largura * escala_thumb))
+    th = int(round(altura * escala_thumb))
+    colunas = min(len(pngs) + 1, 5)
+    total_cards = len(pngs) + 1
+    linhas = (total_cards + colunas - 1) // colunas
+    pad = 24
+    topo_rotulo = 32
+    largura_prancha = pad + colunas * (tw + pad)
+    altura_prancha = pad + linhas * (th + topo_rotulo + pad)
+
+    prancha = Image.new("RGB", (largura_prancha, altura_prancha), (15, 18, 11))
+    draw = ImageDraw.Draw(prancha)
+
+    for idx, p in enumerate(pngs):
+        col = idx % colunas
+        lin = idx // colunas
+        x = pad + col * (tw + pad)
+        y = pad + lin * (th + topo_rotulo + pad)
+        draw.text((x, y + 6), f"{idx + 1:02d}. {p.stem}", fill=(237, 238, 227))
+        with Image.open(p) as im:
+            thumb = im.convert("RGB").resize((tw, th), Image.Resampling.LANCZOS)
+        prancha.paste(thumb, (x, y + topo_rotulo))
+        draw.rectangle([x, y + topo_rotulo, x + tw - 1, y + topo_rotulo + th - 1], outline=(51, 58, 40), width=1)
+
+    idx_grade = len(pngs)
+    col = idx_grade % colunas
+    lin = idx_grade // colunas
+    x = pad + col * (tw + pad)
+    y = pad + lin * (th + topo_rotulo + pad)
+    draw.text((x, y + 6), "Capa na Grade 3:4", fill=(201, 168, 76))
+    with Image.open(pngs[0]) as capa:
+        capa_rgb = capa.convert("RGB")
+        cw, ch = capa_rgb.size
+        alvo_ratio = 3 / 4
+        atual_ratio = cw / ch
+        if atual_ratio > alvo_ratio:
+            novo_w = int(round(ch * alvo_ratio))
+            x0 = (cw - novo_w) // 2
+            corte = capa_rgb.crop((x0, 0, x0 + novo_w, ch))
+        else:
+            novo_h = int(round(cw / alvo_ratio))
+            y0 = (ch - novo_h) // 2
+            corte = capa_rgb.crop((0, y0, cw, y0 + novo_h))
+        gw = tw
+        gh = min(th, int(round(tw / alvo_ratio)))
+        thumb_grade = corte.resize((gw, gh), Image.Resampling.LANCZOS)
+        prancha.paste(thumb_grade, (x, y + topo_rotulo))
+        draw.rectangle([x, y + topo_rotulo, x + gw - 1, y + topo_rotulo + gh - 1], outline=(201, 168, 76), width=2)
+
+    saida = pasta_render / "prancha.png"
+    prancha.save(saida, "PNG")
+    return saida
+
+
+def main():
+    raiz = Path(sys.argv[1])
+    ap = argparse.ArgumentParser(description="Valida e renderiza post ou carrossel do HyperCut em renders/<prefixo>-<slug>/")
+    ap.add_argument("projeto", help="Nome ou caminho do projeto (ex.: post-lancamento)")
+    ap.add_argument("--slug", default="", help="Slug do post quando houver mais de um no projeto (padrão: nome do projeto)")
+    ap.add_argument("--prefixo", choices=("post", "carrossel"), default="", help="Prefixo da pasta de render (padrão: post p/ 1 lâmina, carrossel p/ 2+)")
+    ap.add_argument("--slides", default="", help="Pasta de lâminas relativa ao projeto (padrão: slides/)")
+    ap.add_argument("--legenda", default="", help="Arquivo de legenda relativo ao projeto (padrão: roteiro/legenda.md)")
+    ap.add_argument("--checar", action="store_true", help="Apenas valida lâminas e legenda, sem renderizar PNG/PDF")
+    ap.add_argument("--escala", type=int, choices=(1, 2), default=1, help="Fator de escala do render (padrão: 1)")
+    ap.add_argument("--sem-pdf", action="store_true", help="Não gera o PDF na pasta de render")
+    ap.add_argument("--forcar", action="store_true", help="Renderiza mesmo se houver reprovação na checagem")
+    ap.add_argument("--json", action="store_true", help="Saída em JSON")
+    args = ap.parse_args(sys.argv[2:])
+
+    chrome = os.environ.get("CHROME", "")
+    if not chrome or not Path(chrome).is_file():
+        sys.exit("erro: Chrome nao encontrado. Rode: bin/hf browser ensure")
+
+    projeto = resolver_projeto(raiz, args.projeto)
+    slug = re.sub(r"[^a-z0-9]+", "-", (args.slug or extrair_slug_padrao(projeto.name)).lower()).strip("-") or "conteudo"
+
+    if args.slides:
+        slides_dir = (projeto / args.slides).resolve()
+    elif args.slug and (projeto / "posts" / slug / "slides").is_dir():
+        slides_dir = (projeto / "posts" / slug / "slides").resolve()
+    else:
+        slides_dir = projeto / "slides"
+
+    if not slides_dir.is_dir():
+        sys.exit(f"erro: pasta de slides nao encontrada: {slides_dir}")
+
+    slides = sorted(slides_dir.glob("slide-*.html"))
+    if not slides:
+        sys.exit(f"erro: nenhum arquivo slide-*.html em {slides_dir}")
+
+    prefixo = args.prefixo or ("post" if len(slides) == 1 else "carrossel")
+
+    if args.legenda:
+        leg_path = (projeto / args.legenda).resolve()
+    elif args.slug and (projeto / "roteiro" / f"legenda-{slug}.md").is_file():
+        leg_path = projeto / "roteiro" / f"legenda-{slug}.md"
+    elif args.slug and (projeto / "posts" / slug / "legenda.md").is_file():
+        leg_path = projeto / "posts" / slug / "legenda.md"
+    else:
+        leg_path = projeto / "roteiro/legenda.md"
+
+    erros = []
+    avisos = []
+    resolucoes = set()
+    largura, altura = 1080, 1350
+    titulo_capa = ""
+
+    for idx, s in enumerate(slides, 1):
+        html = s.read_text(encoding="utf-8")
+        m = re.search(r'<meta\s+name="tamanho"\s+content="(\d+)x(\d+)"', html)
+        if not m:
+            erros.append(f"{s.name}: falta <meta name=\"tamanho\" content=\"LxA\">.")
+        else:
+            w, h = int(m.group(1)), int(m.group(2))
+            resolucoes.add((w, h))
+            largura, altura = w, h
+
+        if re.search(r'(?:src|href|url)\s*\(?["\']?[^"\')]*\b(brutos|referencias)/', html):
+            erros.append(f"{s.name}: aponta para brutos/ ou referencias/. Use apenas assets/.")
+
+        dom = auditar_slide_dom(chrome, s, largura, altura)
+        if not dom:
+            avisos.append(f"{s.name}: não foi possível inspecionar o DOM no Chrome.")
+            continue
+
+        if idx == 1:
+            titulo_capa = dom.get("tituloPrincipal", "")
+
+        for q in dom.get("imagensQuebradas", []):
+            erros.append(f"{s.name}: imagem quebrada ou não encontrada ({q}).")
+
+        palavras = dom.get("totalPalavras", 0)
+        if palavras > 75:
+            avisos.append(f"{s.name}: {palavras} palavras na lâmina (recomendado até 75 para leitura rápida).")
+
+        fator_w = largura / 1080.0
+        for t in dom.get("textos", []):
+            trecho = t["texto"][:40]
+            fs = t["fontSize"]
+            tag = t["tag"]
+            cls = t["classes"]
+
+            eh_rotulo = tag in ("header", "footer", "small", "code") or any(
+                c in cls for c in ("cabecalho", "rodape", "selo", "indice")
+            )
+            eh_titulo_capa = idx == 1 and (tag == "h1" or "titulo-capa" in cls)
+            eh_titulo = tag in ("h1", "h2") or "titulo" in cls
+
+            if eh_titulo_capa:
+                if fs < 52 * fator_w:
+                    erros.append(f"{s.name}: título da capa com {fs:.0f} px (mínimo: {52*fator_w:.0f} px, ideal >= {64*fator_w:.0f} px).")
+                elif fs < 64 * fator_w:
+                    avisos.append(f"{s.name}: título da capa com {fs:.0f} px (ideal >= {64*fator_w:.0f} px).")
+            elif eh_titulo and not eh_rotulo:
+                if fs < 40 * fator_w:
+                    erros.append(f"{s.name}: título '{trecho}' com {fs:.0f} px (mínimo: {40*fator_w:.0f} px, ideal >= {48*fator_w:.0f} px).")
+            elif not eh_rotulo:
+                if fs < 30 * fator_w:
+                    erros.append(f"{s.name}: texto '{trecho}' com {fs:.0f} px (abaixo do mínimo de {30*fator_w:.0f} px do PRODUCAO.md).")
+                elif fs < 34 * fator_w:
+                    avisos.append(f"{s.name}: texto '{trecho}' com {fs:.0f} px (recomendado >= {34*fator_w:.0f} px para carrossel).")
+
+            if t["overflowX"] or t["overflowY"]:
+                erros.append(f"{s.name}: texto cortado por overflow em '{trecho}'.")
+
+            if t["contraste"] < 3.0:
+                erros.append(f"{s.name}: contraste insuficiente ({t['contraste']}:1) em '{trecho}'.")
+            elif t["contraste"] < 4.5 and fs < 48 * fator_w:
+                avisos.append(f"{s.name}: contraste baixo ({t['contraste']}:1, ideal >= 4.5:1) em '{trecho}'.")
+
+            if t["textAlign"] == "center" and t["palavras"] > 22:
+                avisos.append(f"{s.name}: bloco longo centralizado ('{trecho}...'). Alinhe textos de corpo à esquerda.")
+
+            if not t["sangria"]:
+                margem_lat = int(50 * fator_w)
+                if t["left"] < margem_lat or t["right"] > largura - margem_lat:
+                    erros.append(
+                        f"{s.name}: elemento '{trecho}' invade a margem lateral segura ({t['left']}..{t['right']} px em largura {largura} px)."
+                    )
+                if altura == 1920 and largura == 1080 and not eh_rotulo:
+                    if t["top"] < 130 or t["bottom"] > 1920 - 185:
+                        erros.append(
+                            f"{s.name}: elemento '{trecho}' invade zona segura vertical 9:16 (topo >= 130 px, base >= 185 px)."
+                        )
+                elif idx == 1 and largura == 1080 and altura == 1350 and eh_titulo_capa:
+                    if t["top"] < 135 or t["bottom"] > 1350 - 135:
+                        avisos.append(
+                            f"{s.name}: título da capa ({t['top']}..{t['bottom']} px) fica fora da caixa segura (135..1215 px) quando a grade do perfil corta em 1:1/compacto."
+                        )
+
+    if len(resolucoes) > 1:
+        erros.append(f"Lâminas com resoluções diferentes: {sorted(resolucoes)}. Todas devem ter o mesmo tamanho.")
+
+    erros_leg, avisos_leg, info_leg = auditar_legenda(leg_path, [s.name for s in slides], titulo_capa)
+    erros.extend(erros_leg)
+    avisos.extend(avisos_leg)
+
+    aprovado = len(erros) == 0
+    renders_gerados = []
+    prancha_path = None
+    pdf_path = None
+    legenda_render_path = None
+    pasta_saida_rel = f"renders/{prefixo}-{slug}"
+
+    if not args.checar and (aprovado or args.forcar):
+        pasta_render = resolver_pasta_render(projeto / "renders", prefixo, slug)
+        pasta_saida_rel = str(pasta_render.relative_to(projeto))
+
+        # Limpa PNGs/PDF antigos desta mesma pasta para não acumular lixo ao re-renderizar o mesmo conteúdo
+        for ant in pasta_render.glob("slide-*.png"):
+            ant.unlink(missing_ok=True)
+        for ant in pasta_render.glob("post-*.png"):
+            ant.unlink(missing_ok=True)
+        for ant in pasta_render.glob("*.pdf"):
+            ant.unlink(missing_ok=True)
+
+        for s in slides:
+            nome_png = f"post-{slug}.png" if len(slides) == 1 else f"{s.stem}.png"
+            out_png = pasta_render / nome_png
+            subprocess.run(
+                [
+                    chrome, "--headless", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
+                    f"--force-device-scale-factor={args.escala}", "--virtual-time-budget=1500",
+                    f"--window-size={largura},{altura}", f"--screenshot={out_png}", f"file://{s}"
+                ],
+                capture_output=True, text=True, check=True, timeout=45
+            )
+            with Image.open(out_png) as im:
+                if im.size != (largura * args.escala, altura * args.escala):
+                    erros.append(f"{out_png.name}: tamanho gerado {im.size} difere de {(largura * args.escala, altura * args.escala)}.")
+            renders_gerados.append(out_png)
+
+        if renders_gerados:
+            prancha_path = montar_prancha(pasta_render, renders_gerados, largura, altura)
+            if not args.sem_pdf and len(renders_gerados) > 1:
+                pdf_path = pasta_render / f"{prefixo}-{slug}.pdf"
+                imagens_rgb = [Image.open(p).convert("RGB") for p in renders_gerados]
+                try:
+                    imagens_rgb[0].save(
+                        pdf_path, "PDF", resolution=150.0, save_all=True, append_images=imagens_rgb[1:]
+                    )
+                finally:
+                    for im in imagens_rgb:
+                        im.close()
+
+            if leg_path.is_file():
+                legenda_render_path = pasta_render / "legenda.md"
+                shutil.copy2(leg_path, legenda_render_path)
+
+    resultado = {
+        "ok": aprovado,
+        "projeto": str(projeto.relative_to(raiz)) if projeto.is_relative_to(raiz) else str(projeto),
+        "pasta_render": pasta_saida_rel,
+        "prefixo": prefixo,
+        "slug": slug,
+        "resolucao": f"{largura}x{altura}",
+        "escala": args.escala,
+        "laminas": len(slides),
+        "legenda": info_leg,
+        "erros": erros,
+        "avisos": avisos,
+        "renders": [str(p.relative_to(projeto)) for p in renders_gerados],
+        "prancha": str(prancha_path.relative_to(projeto)) if prancha_path else None,
+        "pdf": str(pdf_path.relative_to(projeto)) if pdf_path else None,
+        "legenda_entregue": str(legenda_render_path.relative_to(projeto)) if legenda_render_path else None,
+    }
+
+    if args.json:
+        print(json.dumps(resultado, ensure_ascii=False, indent=2))
+    else:
+        status = "APROVADO" if aprovado else "REPROVADO"
+        print(f"[{status}] {resultado['projeto']} -> {pasta_saida_rel}/ — {len(slides)} lâmina(s) em {largura}x{altura} (rede: {info_leg['rede']})")
+        print(
+            f"Título ({info_leg['titulo_chars']} chars): {info_leg['titulo'] or '(ausente)'}\n"
+            f"Legenda: {info_leg['caracteres']} caracteres | gancho: {info_leg['gancho_chars']} chars | "
+            f"hashtags: {info_leg['hashtags']} | alt-texts: {info_leg['alt_texts']}/{len(slides)}"
+        )
+        for e in erros:
+            print(f"  ERRO: {e}")
+        for a in avisos:
+            print(f"  AVISO: {a}")
+        if renders_gerados:
+            print(
+                f"Saída na pasta única {pasta_saida_rel}/: {len(renders_gerados)} PNG, "
+                f"prancha.png, legenda.md" + (f" e {pdf_path.name}" if pdf_path else "")
+            )
+
+    sys.exit(0 if aprovado else 1)
+
+
+if __name__ == "__main__":
+    main()
+PY

@@ -27,8 +27,9 @@ Um agente sozinho até monta um vídeo, mas improvisa o processo. Aqui ele receb
 | Você pede | O agente faz |
 | --- | --- |
 | "Crie um vídeo vertical de 20 segundos apresentando meu produto." | Cria o projeto, planeja cena a cena, anima em HTML e renderiza depois da sua aprovação |
+| "Crie um carrossel de 6 lâminas pro Instagram e pro LinkedIn" | Planeja o arco lâmina a lâmina, monta em HTML, valida fontes, contraste e zonas seguras, escreve a legenda e exporta PNG, prancha e PDF |
 | "Edita esse reel" e manda a gravação | Tira pausas, erros e retomadas e monta em 9:16, com legenda e peças de interface |
-| "Quero algo nesse estilo" e manda um link | Baixa a referência, gera pranchas de quadros, conta os cortes e lê as falas, com a análise na sua máquina |
+| "Quero algo nesse estilo" e manda um link de vídeo ou post | Baixa ou lê a referência, gera pranchas, mede ritmo, paleta e estrutura na sua máquina |
 | "Põe legenda palavra por palavra" | Gera a legenda da voz final, em blocos de 1 a 3 palavras com destaques |
 | "Coloca efeitos sonoros" | Acha os pontos, escolhe o som, ajusta o nível e registra o crédito |
 | "A voz tá com chiado" ou "o vídeo tá tremido" | Limpa a voz, estabiliza a imagem e confere o arquivo contra a spec da rede |

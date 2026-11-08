@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Cria um projeto padronizado de post ou carrossel em projetos/post-<nome>/.
+# Uso: novo-post <nome-em-kebab-case> [retrato|grade|quadrado|vertical|paisagem|pin] [laminas]
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+NOME_BRUTO="${1:?uso: novo-post <nome-em-kebab-case> [retrato|grade|quadrado|vertical|paisagem|pin] [laminas]}"
+FORMATO="${2:-retrato}"
+LAMINAS="${3:-5}"
+
+if [[ ! "$NOME_BRUTO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  echo "Nome invalido: '$NOME_BRUTO'. Use kebab-case, ex.: lancamento-produto" >&2
+  exit 1
+fi
+
+if [[ ! "$LAMINAS" =~ ^[0-9]+$ ]] || (( LAMINAS < 1 || LAMINAS > 35 )); then
+  echo "Quantidade de laminas invalida: '$LAMINAS'. Use um inteiro entre 1 e 35." >&2
+  exit 1
+fi
+
+case "$FORMATO" in
+  retrato|4:5|portrait)
+    FORMATO_CANON="retrato"
+    LARGURA=1080
+    ALTURA=1350
+    ;;
+  grade|3:4)
+    FORMATO_CANON="grade"
+    LARGURA=1080
+    ALTURA=1440
+    ;;
+  quadrado|1:1|square)
+    FORMATO_CANON="quadrado"
+    LARGURA=1080
+    ALTURA=1080
+    ;;
+  vertical|9:16)
+    FORMATO_CANON="vertical"
+    LARGURA=1080
+    ALTURA=1920
+    ;;
+  paisagem|16:9|landscape)
+    FORMATO_CANON="paisagem"
+    LARGURA=1600
+    ALTURA=900
+    ;;
+  pin|2:3)
+    FORMATO_CANON="pin"
+    LARGURA=1000
+    ALTURA=1500
+    ;;
+  *)
+    echo "Formato invalido: '$FORMATO'. Use: retrato (1080x1350), grade (1080x1440), quadrado (1080x1080), vertical (1080x1920), paisagem (1600x900) ou pin (1000x1500)." >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$NOME_BRUTO" == post-* ]]; then
+  PASTA_NOME="$NOME_BRUTO"
+else
+  PASTA_NOME="post-$NOME_BRUTO"
+fi
+
+DEST="$ROOT/projetos/$PASTA_NOME"
+if [[ -e "$DEST" ]]; then
+  echo "Ja existe: projetos/$PASTA_NOME" >&2
+  exit 1
+fi
+
+mkdir -p "$DEST"/{brutos,tools,assets/img,assets/fonts,referencias,roteiro,slides,renders}
+cp -R "$ROOT/modelo-post/." "$DEST/"
+
+# Ajusta resolucao em base.css e nas laminas
+sed -i "s/width: 1080px;/width: ${LARGURA}px;/g; s/height: 1350px;/height: ${ALTURA}px;/g" "$DEST/slides/base.css"
+if [[ "$FORMATO_CANON" == "vertical" ]]; then
+  sed -i "s/padding: 150px 80px 140px;/padding: 170px 80px 210px;/g" "$DEST/slides/base.css"
+  sed -i "s/top: 68px;/top: 136px;/g; s/bottom: 68px;/bottom: 192px;/g" "$DEST/slides/base.css"
+elif [[ "$FORMATO_CANON" == "paisagem" ]]; then
+  sed -i "s/padding: 150px 80px 140px;/padding: 110px 96px 110px;/g" "$DEST/slides/base.css"
+fi
+
+# Ajusta a quantidade de laminas pedida
+ "$ROOT/.venv/bin/python" -I - "$DEST" "$LARGURA" "$ALTURA" "$LAMINAS" "$FORMATO_CANON" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+dest = Path(sys.argv[1])
+largura = int(sys.argv[2])
+altura = int(sys.argv[3])
+total = int(sys.argv[4])
+formato = sys.argv[5]
+tamanho = f"{largura}x{altura}"
+
+slides_dir = dest / "slides"
+existentes = sorted(slides_dir.glob("slide-*.html"))
+textos_modelo = [p.read_text(encoding="utf-8") for p in existentes]
+for p in existentes:
+    p.unlink()
+
+nomes_slides = []
+for i in range(1, total + 1):
+    nome = f"slide-{i:02d}.html"
+    nomes_slides.append(nome)
+    if total == 1:
+        html = textos_modelo[0]
+        html = html.replace('<span class="pista-deslize">Deslize &rarr;</span>', '<span>HyperCut</span>')
+    elif i == 1:
+        html = textos_modelo[0]
+    elif i == total:
+        html = textos_modelo[-1]
+    elif i == total - 1 and total >= 4:
+        html = textos_modelo[-2]
+    elif i == 2:
+        html = textos_modelo[1]
+    else:
+        html = textos_modelo[2]
+
+    html = re.sub(r'content="\d+x\d+"', f'content="{tamanho}"', html)
+    html = re.sub(r'\b0\d / 05\b', f"{i:02d} / {total:02d}", html)
+    html = re.sub(r'Lâmina 0\d', f"Lâmina {i:02d}", html)
+    (slides_dir / nome).write_text(html, encoding="utf-8")
+
+# Atualiza index.html (Mesa de Luz)
+idx_path = dest / "index.html"
+idx = idx_path.read_text(encoding="utf-8")
+idx = re.sub(r'data-slides="[^"]*"', f'data-slides="{",".join(nomes_slides)}"', idx)
+idx = re.sub(r'data-largura="\d+"', f'data-largura="{largura}"', idx)
+idx = re.sub(r'data-altura="\d+"', f'data-altura="{altura}"', idx)
+idx_path.write_text(idx, encoding="utf-8")
+
+# Atualiza lista de Alt Text em roteiro/legenda.md
+leg_path = dest / "roteiro/legenda.md"
+leg = leg_path.read_text(encoding="utf-8")
+cabecalho, _, _ = leg.partition("## Texto alternativo (Alt Text)")
+alts = [f"- slide-{i:02d}: Descrição objetiva do visual e do texto central da lâmina {i:02d}." for i in range(1, total + 1)]
+leg_path.write_text(cabecalho + "## Texto alternativo (Alt Text)\n" + "\n".join(alts) + "\n", encoding="utf-8")
+PY
+
+echo "Projeto criado: projetos/$PASTA_NOME ($FORMATO_CANON ${LARGURA}x${ALTURA}, $LAMINAS lamina(s))"

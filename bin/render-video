@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# Valida a legenda (com titulo) e renderiza um video do HyperCut em renders/<prefixo>-<slug>/ junto com legenda.md.
+# Novas renderizacoes do mesmo conteudo reutilizam e atualizam a mesma pasta.
+# Uso: bin/render-video <projeto> [--slug <slug>] [--prefixo video|reel] [--quality draft|looks|delivery] [--legenda <arq>] [--checar]
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+source "$ROOT/bin/ambiente.sh"
+
+exec "$ROOT/.venv/bin/python" -I - "$ROOT" "$@" <<'PY'
+import argparse
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+LIMITES_REDE = {
+    "youtube": {"max_chars": 5000, "gancho_max": 120, "ideal_min": 150},
+    "instagram": {"max_chars": 2200, "gancho_max": 120, "ideal_min": 150},
+    "linkedin": {"max_chars": 3000, "gancho_max": 140, "ideal_min": 300},
+    "tiktok": {"max_chars": 4000, "gancho_max": 100, "ideal_min": 80},
+    "threads": {"max_chars": 500, "gancho_max": 120, "ideal_min": 80},
+    "x": {"max_chars": 280, "gancho_max": 120, "ideal_min": 50},
+    "pinterest": {"max_chars": 500, "gancho_max": 100, "ideal_min": 100},
+}
+TAGS_SPAM = {"#fyp", "#foryou", "#foryoupage", "#viral", "#instagood", "#like4like", "#follow4follow"}
+SAUDACOES_VAZIAS = ("olá", "ola ", "oi pessoal", "oi gente", "bom dia", "boa tarde", "boa noite", "fala pessoal")
+
+
+def resolver_projeto(raiz: Path, arg: str) -> Path:
+    cand = Path(arg)
+    if cand.is_dir():
+        return cand.resolve()
+    for nome in (arg, f"reel-{arg}", f"video-{arg}"):
+        p = raiz / "projetos" / nome
+        if p.is_dir():
+            return p.resolve()
+    sys.exit(f"erro: projeto nao encontrado: {arg}")
+
+
+def extrair_slug_padrao(nome_pasta: str) -> str:
+    for pref in ("video-", "reel-", "post-", "carrossel-"):
+        if nome_pasta.startswith(pref) and len(nome_pasta) > len(pref):
+            return nome_pasta[len(pref):]
+    return nome_pasta
+
+
+def auditar_legenda_video(leg_path: Path) -> tuple[list[str], list[str], dict]:
+    erros, avisos = [], []
+    info = {"titulo": "", "titulo_chars": 0, "rede": "youtube", "caracteres": 0, "gancho_chars": 0, "hashtags": 0}
+    if not leg_path.is_file():
+        erros.append(f"{leg_path} não encontrado. Crie roteiro/legenda.md com '## Título' e '## Legenda'.")
+        return erros, avisos, info
+
+    conteudo = leg_path.read_text(encoding="utf-8")
+    secoes = re.split(r"^##\s+", conteudo, flags=re.M)
+    mapa = {}
+    for sec in secoes[1:]:
+        linhas = sec.strip().splitlines()
+        if not linhas:
+            continue
+        mapa[linhas[0].strip().lower()] = "\n".join(linhas[1:]).strip()
+
+    titulo_linhas = (mapa.get("título") or mapa.get("titulo") or "").splitlines()
+    titulo_str = titulo_linhas[0].strip() if titulo_linhas else ""
+    info["titulo"] = titulo_str
+    info["titulo_chars"] = len(titulo_str)
+    if not titulo_str:
+        erros.append("Legenda: seção '## Título' obrigatória está vazia ou ausente.")
+    elif len(titulo_str) < 10:
+        erros.append(f"Legenda: '## Título' muito curto ({len(titulo_str)} caracteres; mínimo 10).")
+    elif len(titulo_str) > 100:
+        erros.append(f"Legenda: '## Título' tem {len(titulo_str)} caracteres (limite máximo do YouTube: 100).")
+    elif len(titulo_str) > 70:
+        avisos.append(f"Legenda: '## Título' tem {len(titulo_str)} caracteres (recomendado até 70 para não cortar no YouTube).")
+
+    rede = (mapa.get("rede principal", "youtube").splitlines() or ["youtube"])[0].strip().lower()
+    if rede not in LIMITES_REDE:
+        rede = "youtube"
+    info["rede"] = rede
+    lim = LIMITES_REDE[rede]
+
+    legenda_bruta = mapa.get("legenda", "").strip()
+    if not legenda_bruta:
+        erros.append("Legenda: seção '## Legenda' está vazia.")
+        return erros, avisos, info
+
+    paragrafos = [p.strip() for p in re.split(r"\n\s*\n", legenda_bruta) if p.strip()]
+    tags = re.findall(r"#[A-Za-zÀ-ÿ0-9_]+", legenda_bruta)
+    info["caracteres"] = len(legenda_bruta)
+    info["hashtags"] = len(tags)
+
+    primeira_linha = paragrafos[0].splitlines()[0].strip() if paragrafos else ""
+    info["gancho_chars"] = len(primeira_linha)
+    if len(primeira_linha) > lim["gancho_max"]:
+        avisos.append(f"Legenda: 1ª linha tem {len(primeira_linha)} caracteres (recomendado até {lim['gancho_max']}).")
+    if any(primeira_linha.lower().startswith(s) for s in SAUDACOES_VAZIAS):
+        erros.append("Legenda: 1ª linha começa com saudação vazia.")
+    if len(legenda_bruta) > lim["max_chars"]:
+        erros.append(f"Legenda: {len(legenda_bruta)} caracteres excede o limite de {lim['max_chars']} do {rede}.")
+
+    spam_achado = sorted({t.lower() for t in tags} & TAGS_SPAM)
+    if spam_achado:
+        erros.append(f"Legenda: hashtags genéricas proibidas: {', '.join(spam_achado)}.")
+
+    return erros, avisos, info
+
+
+def main():
+    raiz = Path(sys.argv[1])
+    ap = argparse.ArgumentParser(description="Renderiza vídeo do HyperCut em renders/<prefixo>-<slug>/ junto com legenda.md")
+    ap.add_argument("projeto", help="Nome ou caminho do projeto")
+    ap.add_argument("--slug", default="", help="Slug do vídeo quando houver mais de um no projeto")
+    ap.add_argument("--prefixo", choices=("video", "reel"), default="", help="Prefixo da pasta de render (padrão: reel p/ reel-*, senão video)")
+    ap.add_argument("--quality", choices=("draft", "looks", "delivery"), default="looks", help="Qualidade do render HyperFrames")
+    ap.add_argument("--legenda", default="", help="Arquivo de legenda relativo ao projeto (padrão: roteiro/legenda.md)")
+    ap.add_argument("--checar", action="store_true", help="Apenas valida a legenda e a estrutura da pasta de render")
+    ap.add_argument("--forcar", action="store_true", help="Renderiza mesmo se houver erro na legenda")
+    args = ap.parse_args(sys.argv[2:])
+
+    projeto = resolver_projeto(raiz, args.projeto)
+    prefixo = args.prefixo or ("reel" if projeto.name.startswith("reel-") else "video")
+    slug = re.sub(r"[^a-z0-9]+", "-", (args.slug or extrair_slug_padrao(projeto.name)).lower()).strip("-") or "video"
+
+    if args.legenda:
+        leg_path = (projeto / args.legenda).resolve()
+    elif args.slug and (projeto / "roteiro" / f"legenda-{slug}.md").is_file():
+        leg_path = projeto / "roteiro" / f"legenda-{slug}.md"
+    else:
+        leg_path = projeto / "roteiro/legenda.md"
+
+    erros, avisos, info = auditar_legenda_video(leg_path)
+    aprovado = len(erros) == 0
+
+    pasta_render = projeto / "renders" / f"{prefixo}-{slug}"
+    pasta_rel = f"renders/{prefixo}-{slug}"
+    mp4_saida = pasta_render / f"{prefixo}-{slug}.mp4"
+
+    status = "APROVADO" if aprovado else "REPROVADO"
+    print(f"[{status}] {projeto.name} -> {pasta_rel}/ (rede: {info['rede']})")
+    print(f"Título ({info['titulo_chars']} chars): {info['titulo'] or '(ausente)'}")
+    print(f"Legenda: {info['caracteres']} chars | gancho: {info['gancho_chars']} chars | hashtags: {info['hashtags']}")
+    for e in erros:
+        print(f"  ERRO: {e}")
+    for a in avisos:
+        print(f"  AVISO: {a}")
+
+    if args.checar:
+        sys.exit(0 if aprovado else 1)
+
+    if not aprovado and not args.forcar:
+        sys.exit(1)
+
+    pasta_render.mkdir(parents=True, exist_ok=True)
+    hf_bin = raiz / "bin/hf"
+    cmd = [str(hf_bin), "render", "--quality", args.quality, "-o", str(mp4_saida)]
+    r = subprocess.run(cmd, cwd=projeto)
+    if r.returncode != 0:
+        sys.exit(r.returncode)
+
+    if leg_path.is_file():
+        shutil.copy2(leg_path, pasta_render / "legenda.md")
+
+    print(f"Saída na pasta única {pasta_rel}/: {mp4_saida.name} e legenda.md")
+
+
+if __name__ == "__main__":
+    main()
+PY
