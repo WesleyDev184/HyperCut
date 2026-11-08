@@ -244,10 +244,13 @@ def escolhe_video(projeto, pedido):
         if not v.exists():
             erro(f"video nao existe: {v}")
         return v
-    padrao = projeto / "renders" / f"{projeto.name}.mp4"
-    if padrao.exists():
-        return padrao
-    achados = [p for d in ("renders", "entrega", "render") for p in (projeto / d).glob("*.mp4")]
+    for padrao in (
+        projeto / "renders" / f"video-{projeto.name}" / f"video-{projeto.name}.mp4",
+        projeto / "renders" / f"{projeto.name}.mp4",
+    ):
+        if padrao.exists():
+            return padrao
+    achados = [p for d in ("renders", "entrega", "render") if (projeto / d).is_dir() for p in (projeto / d).rglob("*.mp4")]
     if not achados:
         erro(f"nenhum MP4 em {projeto}. Renderize antes: a medicao vale para o arquivo final")
     return max(achados, key=lambda p: p.stat().st_mtime)

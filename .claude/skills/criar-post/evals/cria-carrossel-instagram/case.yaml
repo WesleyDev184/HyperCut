@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: cria-carrossel-instagram
+expected_outcome: |
+  Cria o projeto com bin/novo-post, planeja no SPEC.md, edita as lâminas e roteiro/legenda.md, valida e renderiza com bin/render-post e inspeciona renders/prancha.png.

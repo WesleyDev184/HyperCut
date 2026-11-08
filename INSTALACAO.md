@@ -214,7 +214,7 @@ Rode `bin/instalar-skills` e peça para ele ler `AGENTS.md` e `PRODUCAO.md` ante
 
 ### Conferir
 
-Peça ao agente: "liste as skills deste projeto e diga qual comando carrega o ambiente". Ele deve citar `assistir-video`, `legendas-da-voz`, `medir-mixagem`, `tratar-bruto`, `reel`, `real-sfx` e `bin/com-ambiente`.
+Peça ao agente: "liste as skills deste projeto e diga qual comando carrega o ambiente". Ele deve citar `assistir-video`, `analisar-post`, `criar-post`, `legendas-da-voz`, `medir-mixagem`, `tratar-bruto`, `reel`, `real-sfx` e `bin/com-ambiente`.
 
 ## Como o ambiente é carregado
 

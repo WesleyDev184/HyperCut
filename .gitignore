@@ -5,7 +5,9 @@ projetos/*
 # Skills: só as deste repositório. real-sfx não tem licença de redistribuição e vem do original,
 # e as skills do HyperFrames são instaladas por agente
 .claude/skills/*
+!.claude/skills/analisar-post/
 !.claude/skills/assistir-video/
+!.claude/skills/criar-post/
 !.claude/skills/legendas-da-voz/
 !.claude/skills/medir-mixagem/
 !.claude/skills/tratar-bruto/

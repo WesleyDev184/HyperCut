@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Mesa de Luz — Post / Carrossel (HyperCut)</title>
+<style>
+  :root {
+    --fundo: #0f120b;
+    --painel: #181c13;
+    --linha: #303726;
+    --texto: #edeee3;
+    --apagado: #a7ae98;
+    --verde: #7bb289;
+    --ouro: #c9a84c;
+    --alerta: #d97e63;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--fundo);
+    color: var(--texto);
+    font-family: system-ui, -apple-system, sans-serif;
+    padding: 24px 32px 60px;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--linha);
+    margin-bottom: 28px;
+  }
+  h1 { font-size: 20px; font-weight: 700; }
+  .controles { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    background: var(--painel);
+    color: var(--texto);
+    border: 1px solid var(--linha);
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  button.ativo { border-color: var(--verde); color: var(--verde); }
+  .mesa {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 24px;
+    overflow-x: auto;
+    padding-bottom: 20px;
+  }
+  body.colado .mesa { gap: 0; }
+  .quadro-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rotulo {
+    font-size: 12px;
+    font-family: monospace;
+    color: var(--apagado);
+    display: flex;
+    justify-content: space-between;
+  }
+  .moldura {
+    position: relative;
+    width: calc(var(--w, 1080) * var(--escala, 0.32) * 1px);
+    height: calc(var(--h, 1350) * var(--escala, 0.32) * 1px);
+    border: 1px solid var(--linha);
+    overflow: hidden;
+    background: #14170f;
+  }
+  body.colado .moldura { border-left: none; border-right: 1px dashed rgba(201,168,76,0.35); }
+  iframe {
+    width: calc(var(--w, 1080) * 1px);
+    height: calc(var(--h, 1350) * 1px);
+    border: 0;
+    transform: scale(var(--escala, 0.32));
+    transform-origin: top left;
+    pointer-events: none;
+  }
+  .guia-margem, .guia-grade {
+    position: absolute;
+    pointer-events: none;
+    display: none;
+  }
+  body.mostrar-margens .guia-margem {
+    display: block;
+    left: calc(60 / var(--w, 1080) * 100%);
+    right: calc(60 / var(--w, 1080) * 100%);
+    top: calc(80 / var(--h, 1350) * 100%);
+    bottom: calc(80 / var(--h, 1350) * 100%);
+    border: 1px dashed var(--verde);
+  }
+  body.mostrar-grade .quadro-wrap:first-child .guia-grade {
+    display: block;
+    left: calc(34 / var(--w, 1080) * 100%);
+    right: calc(34 / var(--w, 1080) * 100%);
+    top: calc(135 / var(--h, 1350) * 100%);
+    bottom: calc(135 / var(--h, 1350) * 100%);
+    border: 2px solid var(--ouro);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  }
+</style>
+</head>
+<body class="mostrar-margens">
+<header>
+  <h1>Mesa de Luz — Pré-visualização de Lâminas</h1>
+  <div class="controles">
+    <button id="btn-margens" class="ativo" onclick="alternar('mostrar-margens', this)">Margens seguras</button>
+    <button id="btn-grade" onclick="alternar('mostrar-grade', this)">Corte Grade 3:4 (Capa)</button>
+    <button id="btn-colado" onclick="alternar('colado', this)">Sangria contínua (0 px)</button>
+  </div>
+</header>
+
+<section class="mesa" id="mesa" data-slides="slide-01.html,slide-02.html,slide-03.html,slide-04.html,slide-05.html" data-largura="1080" data-altura="1350"></section>
+
+<script>
+  function alternar(classe, btn) {
+    document.body.classList.toggle(classe);
+    btn.classList.toggle("ativo");
+  }
+  const mesa = document.getElementById("mesa");
+  const w = Number(mesa.dataset.largura || 1080);
+  const h = Number(mesa.dataset.altura || 1350);
+  document.documentElement.style.setProperty("--w", w);
+  document.documentElement.style.setProperty("--h", h);
+  const slides = (mesa.dataset.slides || "").split(",").filter(Boolean);
+  slides.forEach((arq, idx) => {
+    const wrap = document.createElement("div");
+    wrap.className = "quadro-wrap";
+    wrap.innerHTML = `
+      <div class="rotulo"><span>${arq}</span><span>${idx + 1}/${slides.length}</span></div>
+      <div class="moldura">
+        <iframe src="slides/${arq}"></iframe>
+        <div class="guia-margem" title="Zona segura de texto"></div>
+        <div class="guia-grade" title="Caixa segura na grade do perfil"></div>
+      </div>
+    `;
+    mesa.appendChild(wrap);
+  });
+</script>
+</body>
+</html>

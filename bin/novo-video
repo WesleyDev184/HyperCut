@@ -28,7 +28,7 @@ node -e '
   pkg.scripts = {
     dev: "../../bin/hf preview",
     check: "../../bin/hf check",
-    render: "../../bin/hf render",
+    render: "../../bin/render-video .",
     publish: "../../bin/hf publish",
   };
   fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");

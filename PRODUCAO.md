@@ -1,6 +1,6 @@
 # Padrões de produção
 
-Valem para todo vídeo, salvo pedido contrário no `BRIEF.md`.
+Valem para todo vídeo, post e carrossel, salvo pedido contrário no `BRIEF.md`.
 
 ## Planejamento
 
@@ -125,6 +125,8 @@ Meça voz, música e master com o filtro `ebur128` do FFmpeg. Limitador só se u
 - Todo `.gif` ou clipe de `brutos/` é convertido em `tools/` para `.mp4` mudo (`30 fps`, `yuv420p`) em `assets/vid/`. Na composição, tags `<video>` ficam sempre no nível raiz (`#root`) com `data-start` e `data-duration` próprios, nunca aninhadas dentro de outra cena temporizada.
 - Em scripts de preparo (`tools/`), remova faixas pretas de capturas (`letterbox`) e limite a ampliação de imagens a no máximo `3,2x` do tamanho original (com Lanczos). Imagem pequena fica menor no painel em vez de estourar borrada.
 - Com voz e música, entregue também as faixas em WAV com a duração completa, para remixar depois.
+- **Saída de render (`renders/<prefixo>-<slug>/`):** cada conteúdo renderizado fica na sua própria pasta dentro de `renders/` com o prefixo correspondente ao formato (`video-<slug>/`, `reel-<slug>/`, `post-<slug>/` ou `carrossel-<slug>/`), contendo o arquivo renderizado e a `legenda.md` daquela publicação (com `## Título`, `## Rede principal`, `## Legenda` e `## Texto alternativo (Alt Text)`).
+- **Re-renderização na mesma pasta:** novas renderizações ou ajustes sobre o mesmo conteúdo **mantêm e sobrescrevem os arquivos na mesma pasta `renders/<prefixo>-<slug>/`**, nunca criando outra pasta (`-v2`, `-novo`, `-copia`) para a mesma peça.
 - Dependência nova é instalada nesta pasta, nunca no sistema.
 
 ## Verificação
@@ -141,7 +143,110 @@ Meça voz, música e master com o filtro `ebur128` do FFmpeg. Limitador só se u
 ## Relatório
 
 Registre em `REVIEW.md`: decisões tomadas, fatos e fontes, divergências, reconstruções de interface,
-efeitos com seus tempos, LUFS e pico de cada faixa e o resultado da verificação.
+efeitos com seus tempos, LUFS e pico de cada faixa (em vídeo), métricas de lâminas e legenda (em post/carrossel) e o resultado da verificação.
+
+## Posts e carrosséis
+
+Valem para projetos `post-*` (imagem única ou carrossel em HTML renderizado para PNG e PDF). Paleta, veracidade e preparo de mídia seguem as mesmas regras acima.
+
+### Formatos e dimensões por rede
+
+Todas as lâminas de um carrossel têm **exatamente a mesma dimensão em pixels** (a Lâmina 1 trava a proporção da postagem inteira nas plataformas).
+
+| Formato (`bin/novo-post`) | Resolução | Proporção | Onde usar | Limite de lâminas |
+| --- | --- | --- | --- | --- |
+| `retrato` (padrão) | `1080 × 1350 px` | `4:5` | Instagram Feed, LinkedIn (PDF), Threads, Facebook | Até 20 no Instagram/Threads; até 300 pág. no LinkedIn (ideal: 5 a 10) |
+| `grade` | `1080 × 1440 px` | `3:4` | Instagram quando a capa precisa casar sem corte com a grade 3:4 do perfil | Até 20 no Instagram (ideal: 5 a 10) |
+| `quadrado` | `1080 × 1080 px` | `1:1` | Multiplataforma universal, Instagram, LinkedIn, X, Pinterest | Até 20 no Instagram; até 10 em anúncios |
+| `vertical` | `1080 × 1920 px` | `9:16` | TikTok (Modo Foto), Stories, capa de Reels | Até 35 no TikTok (ideal: 5 a 12) |
+| `paisagem` | `1600 × 900 px` | `16:9` | X (Twitter), LinkedIn imagem única horizontal | Até 4 imagens em grade no X |
+| `pin` | `1000 × 1500 px` | `2:3` | Pinterest (Pin estático ou carrossel) | 2 a 5 lâminas no Pinterest |
+
+### Zonas seguras e grade do perfil
+
+- **Margens gerais (`4:5`, `3:4`, `1:1`, `2:3`):** mantenha textos, logos e elementos de leitura a pelo menos **`60 px` das bordas laterais** e **`80 px` do topo e da base**. Fundos, texturas e elementos marcados com `.sangria` (corte contínuo entre lâminas vizinhas) vão até a borda.
+- **Conflito Feed `4:5` vs. Grade `3:4` do Instagram (Lâmina 1):** a grade do perfil do Instagram exibe miniaturas em `3:4`. Quando o carrossel é `4:5` (`1080 × 1350 px`), o perfil corta as laterais (mantendo os `1012 px` centrais) ou, em pré-visualizações quadradas/compactas, corta até `135 px` do topo e da base. Na **Lâmina 1**, mantenha o título principal, o rosto e o gancho na caixa central segura (`x` entre `80` e `1000 px`, `y` entre `135` e `1215 px`).
+- **Formato vertical (`9:16`, `1080 × 1920 px`):** respeite **`>= 130 px` no topo**, **`>= 185 px` na base** e **`>= 60 px` na lateral direita** (onde ficam os botões de curtir, comentar e compartilhar do TikTok/Reels/Stories).
+
+### Estrutura narrativa do carrossel
+
+Planeje cada lâmina em `SPEC.md` antes de escrever o HTML. O ponto ótimo de retenção fica entre **5 e 10 lâminas** (abaixo de 4 entrega pouco valor; acima de 10 exige ritmo muito rápido para evitar fadiga de deslize):
+
+1. **Lâmina 1 — Gancho (Capa / Outdoor):** concentra 80% do resultado. Deve abrir uma lacuna de curiosidade, mostrar um contraste claro ("o erro vs. o acerto"), uma promessa específica ou um dado real verificado. Frase principal curta (**máximo de 8 a 10 palavras**), mais uma pista visual de continuidade (numeração `01/05`, seta ou elemento visual sangrando na borda direita).
+2. **Lâmina 2 — Segunda capa e contexto:** no Instagram, quando a pessoa passa pela Lâmina 1 sem deslizar, o algoritmo costuma reentregar o post mais tarde começando pela **Lâmina 2**. Ela deve fazer sentido sozinha: valide a dor, mostre por que o jeito comum falha ou apresente a premissa central.
+3. **Lâminas centrais (3 até N−2) — Desenvolvimento:** uma única ideia por lâmina. Use progressão lógica (passo a passo numerado, antes/depois, mito/verdade, anatomia de um caso). Nunca jogue um bloco de texto corrido: divida em **1 título de ação + 1 argumento curto ou visual demonstrativo**.
+4. **Penúltima lâmina (N−1) — Resumo salvável:** sintetize o método em um checklist, tabela rápida ou mapa mental que funcione como cola de consulta. É a lâmina desenhada para gerar **salvamentos** (*saves*).
+5. **Última lâmina (N) — Chamada para ação (CTA):** uma única instrução clara e de baixo atrito (salvar o post, enviar para alguém que passa pelo problema, comentar uma palavra-chave ou acessar o link da bio/comentários).
+
+### Tipografia, contraste e continuidade visual
+
+- **Regra de duas fontes:** no máximo **2 famílias tipográficas** por post (uma de impacto para títulos/números e uma limpa para corpo; uma 3ª monoespaçada é permitida apenas para código, métricas ou rótulos técnicos).
+- **Tamanhos mínimos em tela de `1080 px` de largura:**
+  - Título da capa (Lâmina 1): **`>= 64 px`**
+  - Títulos das lâminas internas: **`>= 48 px`**
+  - Texto de corpo e itens de lista: **`>= 34 px`** (nunca abaixo de `30 px`)
+  - Rótulos secundários, cabeçalho, rodapé e numeração: **`>= 22 px`**
+- **Densidade e alinhamento:** no máximo **45 a 55 palavras por lâmina** e linhas de **6 a 8 palavras**. Alinhe blocos de texto de corpo sempre **à esquerda** (texto longo centralizado dificulta a leitura no celular).
+- **Contraste e respiro:** relação de contraste mínima de **`4,5:1`** (WCAG AA) entre texto de corpo e fundo, e **`3:1`** em títulos grandes. Mantenha pelo menos **35% da lâmina livre** (espaço negativo).
+- **Âncoras fixas e sangria contínua:** cabeçalho (marca/tema), rodapé (arroba/fonte) e indicador de progresso (`02/05`) ficam cravados na **mesma coordenada inteira** em todas as lâminas internas. Na última lâmina (CTA), desligue indicadores de "arraste para o lado". Quando usar sangria contínua (um gráfico ou cartão que atravessa da borda direita da lâmina $N$ para a borda esquerda da lâmina $N+1$), confira na prancha se o encaixe vertical bate no pixel exato.
+
+## Legendas de postagem
+
+Todo vídeo, reel, post ou carrossel traz o texto da publicação em `roteiro/legenda.md` (ou `roteiro/legenda-<slug>.md` quando o projeto tiver múltiplas peças) e entrega uma cópia pronta junto com o arquivo renderizado em `renders/<prefixo>-<slug>/legenda.md`. Assim como no vídeo a legenda de tela não repete o título, na postagem **a legenda da rede nunca copia texto por texto o que já está escrito nas lâminas ou na locução**: a peça visual mostra *o quê*; a legenda entrega *o porquê*, o contexto, o bastidor ou o exemplo prático.
+
+### 0. Título da publicação (`## Título`)
+
+Toda publicação (vídeo, reel, post único ou carrossel) tem obrigatoriamente um **título próprio** na seção `## Título` do `legenda.md`, pronto para plataformas que exigem título separado (YouTube, YouTube Shorts, LinkedIn, Pinterest) e para identificação da peça:
+
+- **Extensão:** até **100 caracteres** (limite técnico do YouTube e do Pinterest), com alvo recomendado entre **40 e 70 caracteres** para aparecer inteiro sem corte em celulares e sugestões.
+- **Construção:** inclua a palavra-chave principal do assunto e a promessa, pergunta ou contraste direto. O título não pode repetir palavra por palavra a 1ª linha da seção `## Legenda`.
+
+### 1. Gancho antes do botão "...mais" (Primeiras 2 linhas)
+
+As plataformas truncam a legenda no feed antes do clique em *"mais"* / *"ver mais"*:
+
+- **Limite do corte visível:** até **120 caracteres** na primeira linha (o corte ocorre perto de `125` caracteres no Instagram, `140 a 210` no LinkedIn e `100` no TikTok).
+- **Proibido na abertura:** saudações vazias (*"Olá, pessoal!"*, *"Bom dia, rede!"*, *"No post de hoje vamos falar sobre..."*), fileira de emojis no início ou repetição literal da frase da Lâmina 1.
+- **Fórmula da 1ª linha:** comece com uma tese contraintuitiva, um número concreto verificado, o custo real de um erro comum ou uma pergunta direta que obrigue o clique em *"mais"*.
+- **2ª linha (ponte):** após uma quebra de linha, entregue em 1 frase o que a pessoa ganha lendo as lâminas ou o texto abaixo.
+
+### 2. Corpo do texto e escaneabilidade
+
+- **Parágrafos curtos:** máximo de **1 a 3 linhas por parágrafo** (até **45 palavras** por bloco), sempre separados por uma linha em branco. Blocos maciços de texto são reprovados na verificação.
+- **Marcadores:** sempre que listar 3 ou mais pontos na legenda, use lista com marcadores (`-` ou `•`) ou numeração (`1.`, `2.`, `3.`), com uma ideia por linha.
+- **Tom por plataforma:**
+  - **Instagram e Threads:** direto, conversacional e prático, como quem explica para uma pessoa só (*"você"*).
+  - **LinkedIn:** analítico, voltado a decisões reais, bastidores técnicos, números medidos e aprendizados de mercado.
+  - **TikTok (Modo Foto):** enxuto, complementar ao visual e rico nos termos exatos que o público digita na busca.
+
+### 3. Extensão alvo e limites por rede
+
+| Rede | Extensão recomendada (carrossel / vídeo denso) | Extensão recomendada (post / short direto) | Limite técnico da plataforma |
+| --- | --- | --- | --- |
+| **YouTube / Shorts** | Título até `70` chars (máx. `100`) + descrição de `600 a 2.000` caracteres com capítulos | Título até `70` chars + descrição de `150 a 500` caracteres | `100` (título) / `5.000` (descrição) |
+| **Instagram** | `400 a 1.200` caracteres (70 a 200 palavras) | `150 a 400` caracteres | `2.200` caracteres |
+| **LinkedIn** | `800 a 1.800` caracteres (130 a 300 palavras) | `400 a 900` caracteres | `3.000` caracteres |
+| **TikTok (Modo Foto)** | `150 a 600` caracteres | `80 a 250` caracteres | `4.000` caracteres |
+| **Threads** | `200 a 450` caracteres por nota | `100 a 300` caracteres | `500` caracteres |
+| **X (Twitter)** | Fio numerado (`1/N`), até `260` caracteres por post | Até `240` caracteres | `280` caracteres (conta padrão) |
+| **Pinterest** | Título até `100` caracteres (foco nos `50` iniciais) + descrição de `150 a 400` caracteres | `100 a 250` caracteres | `100` (título) / `500` (descrição) |
+
+### 4. Chamada para ação (CTA) na legenda
+
+Feche o corpo da legenda com **uma única chamada para ação**, alinhada ao objetivo do `BRIEF.md` e à última lâmina:
+
+- **Para salvamento (retenção e autoridade):** *"Salve este post para consultar antes de [ação específica]."*
+- **Para compartilhamento (alcance orgânico):** *"Mande para a pessoa do seu time que cuida de [assunto]."*
+- **Para comentários (conversa ou automação):** faça uma pergunta fechada de escolha fácil (*"Qual dos passos (1, 2 ou 3) trava mais aí hoje?"*) ou peça uma palavra-chave específica.
+- Nunca empilhe múltiplos pedidos no mesmo fechamento (*"curta, comente, salve e ative o sininho"*).
+
+### 5. SEO social, hashtags e texto alternativo (Alt Text)
+
+Os algoritmos de recomendação indexam o texto da legenda, o OCR das lâminas e o texto alternativo como motor de busca:
+
+- **Palavras-chave naturais:** inclua os 2 ou 3 termos principais de busca do tema de forma natural nas **2 primeiras linhas da legenda** e no **título da Lâmina 1**.
+- **Hashtags:** use de **3 a 5 hashtags** específicas do assunto e do nicho, posicionadas na última linha da legenda após uma linha em branco. Nunca coloque hashtags no meio de frases, nunca passe de 5 hashtags e nunca use tags genéricas de spam (`#fyp`, `#foryou`, `#viral`, `#instagood`, `#like4like`).
+- **Texto alternativo (`Alt Text`):** obrigatório em `roteiro/legenda.md` para **cada lâmina do post/carrossel** (1 frase objetiva de até **125 caracteres por lâmina**, descrevendo o visual e transcrevendo a ideia central para leitores de tela e indexação de busca).
 
 ## Looks disponíveis
 

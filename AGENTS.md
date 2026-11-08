@@ -1,17 +1,17 @@
-# HyperCut: área de trabalho de vídeos
+# HyperCut: área de trabalho de vídeos, posts e carrosséis
 
-Pasta única para produzir vídeos com HyperFrames (HTML renderizado para MP4), com qualquer agente de IA.
-Todo vídeo é feito aqui, e o ambiente inteiro mora aqui: CLI, FFmpeg, FFprobe, Chrome, whisper, TTS,
-Python e a skill `reel`. Cada vídeo é um projeto isolado em `projetos/`.
+Pasta única para produzir vídeos com HyperFrames (HTML renderizado para MP4) e posts ou carrosséis para redes sociais (HTML renderizado para PNG e PDF), com qualquer agente de IA.
+Todo projeto é feito aqui, e o ambiente inteiro mora aqui: CLI, FFmpeg, FFprobe, Chrome, whisper, TTS,
+Python e as skills do projeto. Cada vídeo, reel ou post é um projeto isolado em `projetos/`.
 As regras abaixo valem para todos eles.
 
 Este arquivo é a fonte única das regras. `CLAUDE.md` e `GEMINI.md` só importam este arquivo e o `PRODUCAO.md`.
-**Leia o `PRODUCAO.md` antes de trabalhar em qualquer vídeo:** ele traz os padrões de produção.
+**Leia o `PRODUCAO.md` antes de trabalhar em qualquer vídeo, post ou carrossel:** ele traz os padrões de produção e de legendas.
 
 ## Escopo
 
-- Vídeo novo nasce aqui, nunca em outra pasta.
-- Aqui ficam só projetos de vídeo e as ferramentas que eles compartilham.
+- Vídeo, post ou carrossel novo nasce aqui, nunca em outra pasta.
+- Aqui ficam só projetos de mídia e as ferramentas que eles compartilham.
 - Trabalhe dentro do projeto pedido. Não altere outro projeto sem pedido explícito.
 - Mudanças em `bin/`, `package.json` ou neste arquivo só com pedido explícito.
 
@@ -50,13 +50,17 @@ HyperCut/
 │   ├── instalar-whisper-gpu  transcrição em GPU NVIDIA em `.cache/whisper-gpu/`
 │   ├── instalar-whisper-cuda  `whisper-cli` em GPU para a skill reel, em `.cache/whisper-cuda/`
 │   ├── transcrever-gpu  motor de `hf transcribe` na GPU
-│   ├── novo-video     cria projeto padronizado
+│   ├── novo-video     cria projeto padronizado de vídeo
 │   ├── novo-reel      cria projeto de vídeo real
+│   ├── novo-post      cria projeto de post ou carrossel (`projetos/post-<nome>/`)
+│   ├── render-video   valida título/legenda e renderiza MP4 + `legenda.md` em `renders/<prefixo>-<slug>/`
+│   ├── render-post    valida e renderiza lâminas HTML e `legenda.md` em `renders/<prefixo>-<slug>/`
 │   └── paleta-do-video  sugere paleta a partir de um vídeo
-├── modelo/            estrutura copiada para cada projeto novo
+├── modelo/            estrutura copiada para cada vídeo novo
+├── modelo-post/       estrutura copiada para cada post ou carrossel novo
 ├── paletas/           paletas prontas para reel (`escura.json`)
 ├── sons/              `sons/sons`: acha onde pôr som, usa o kit CC0, busca no Openverse e gera com earshot
-└── projetos/          um vídeo por pasta, fora do git
+└── projetos/          um vídeo, reel ou post por pasta, fora do git
 ```
 
 ### Estrutura de um projeto
@@ -72,7 +76,7 @@ projetos/<nome>/
 │   ├── img/  vid/  audio/  sfx/  fonts/
 ├── index.html         composição principal
 ├── compositions/      uma cena por arquivo
-├── renders/           MP4 finais
+├── renders/           uma subpasta por peça (`video-<slug>/`, `reel-<slug>/`) com o MP4 e `legenda.md`
 ├── SPEC.md            direção em números (skill, filmes acima de ~15 s)
 ├── REVIEW.md          revisão final (skill)
 ├── DESIGN.md          paleta do vídeo: nasce com a paleta escura
@@ -84,7 +88,26 @@ projetos/<nome>/
 - Composições só apontam para `assets/`, nunca para `brutos/` ou `referencias/`.
 - Pasta extra em `assets/` é livre quando o vídeo pedir (`assets/sprites/`, `assets/medalhoes/`).
 - Pasta nova de trabalho na raiz do projeto entra também no `.hyperframesignore`.
-- Mudar a estrutura padrão é mudar `modelo/` e esta seção juntos. Projetos existentes não mudam.
+- Mudar a estrutura padrão é mudar `modelo/` (ou `modelo-post/`) e esta seção juntos. Projetos existentes não mudam.
+
+### Estrutura de um post ou carrossel (`projetos/post-<nome>/`)
+
+```
+projetos/post-<nome>/
+├── BRIEF.md           pedido: objetivo, rede principal, formato, lâminas, CTA
+├── referencias/       inspiração: posts, carrosséis e relatórios de `analisar-post`
+├── roteiro/
+│   └── legenda.md     título (`## Título`), legenda, hashtags (3 a 5) e texto alternativo por lâmina
+├── brutos/            fotos e capturas originais como recebidas. Nunca editar
+├── tools/             scripts de preparo: brutos/ → assets/
+├── assets/            só o que entra nas lâminas, já tratado (`img/`, `fonts/`)
+├── slides/            uma lâmina HTML por arquivo (`slide-01.html`...) e `base.css`
+├── index.html         mesa de luz: pré-visualização lado a lado, zonas seguras e corte 3:4
+├── renders/           uma subpasta por peça (`post-<slug>/` ou `carrossel-<slug>/`) com PNGs, PDF, `prancha.png` e `legenda.md`
+├── SPEC.md            mapa lâmina a lâmina e direção da legenda
+├── REVIEW.md          revisão final
+└── DESIGN.md          paleta do post: nasce com a paleta escura
+```
 
 ## Comandos
 
@@ -96,12 +119,17 @@ Na Claude Code isso é opcional: o hook de `.claude/settings.json` já carrega `
 
 ```bash
 bin/novo-video <nome> [landscape|portrait|square]   # padrão: landscape
+bin/novo-post <nome> [retrato|grade|quadrado|vertical|paisagem|pin] [laminas]   # padrão: retrato (1080x1350), 5 lâminas
 
-# dentro de projetos/<nome>/
+# dentro de projetos/<nome>/ (vídeo)
 ../../bin/hf check --json
 ../../bin/hf snapshot --at 1,3,5
 ../../bin/hf preview --background
-../../bin/hf render --quality looks -o renders/<nome>.mp4
+../../bin/render-video . --quality looks
+
+# para projetos/post-<nome>/ (post ou carrossel)
+bin/render-post post-<nome> --checar
+bin/render-post post-<nome>
 ```
 
 - Use `bin/hf` no lugar de `npx hyperframes`, inclusive nos exemplos das skills e do `CLAUDE.md`
@@ -129,7 +157,7 @@ Todo processamento pesado tenta primeiro a GPU, pelos caminhos abaixo, com queda
   `square` para 1080x1080.
 - **Mídia:** todo arquivo usado fica em `assets/` do projeto, sem caminho para fora dele.
   Arquivos em minúsculas e kebab-case (`trono-armadura.jpg`).
-- **Renders:** `draft` ao iterar, `looks` para revisar, `delivery` no final. Saída em `renders/`.
+- **Renders:** `draft` ao iterar, `looks` para revisar, `delivery` no final. Cada peça renderizada sai em uma pasta própria dentro de `renders/` com o prefixo correspondente (`renders/video-<slug>/`, `renders/reel-<slug>/`, `renders/post-<slug>/`, `renders/carrossel-<slug>/`), contendo o arquivo renderizado e a `legenda.md` daquela publicação (com `## Título` obrigatório, compatível com YouTube/Shorts/LinkedIn/Pinterest). Novas renderizações do mesmo conteúdo atualizam e mantêm a mesma pasta, sem criar outra.
 - **Commits e pull requests:** nunca citam agente, modelo ou ferramenta de IA como autor ou coautor. Sem `Co-Authored-By`
   e sem rodapé de ferramenta. Isso vale sobre qualquer padrão do agente.
 - **Versão:** uma só para todos os projetos, fixada no `package.json` da raiz. Atualizar só com
@@ -141,7 +169,9 @@ Ficam em `.claude/skills/`, e `.agents/skills` aponta para lá. Além de `reel` 
 
 - `medir-mixagem`: mede faixas e master no MP4 final e preenche a tabela do `REVIEW.md`.
 - `legendas-da-voz`: gera `compositions/legendas.html` da voz final.
-- `assistir-video`: analisa referência por link ou arquivo, tudo local.
+- `assistir-video`: analisa vídeo de referência por link ou arquivo, tudo local.
+- `analisar-post`: analisa post ou carrossel de referência por link, imagem ou pasta local, gerando prancha, paleta e relatório.
+- `criar-post`: planeja, constrói e renderiza posts e carrosséis (PNG e PDF) e escreve a legenda da postagem.
 - `tratar-bruto`: limpa voz, estabiliza e confere spec, só em material próprio.
 
 O agente precisa ler imagem para olhar pranchas e snapshots. Sem isso, a análise fica só nos metadados: avise quem pediu.
@@ -219,5 +249,13 @@ Depois, com o HyperFrames:
 8. Rode `snapshot` nos trechos alterados e olhe os frames.
 9. Abra o `preview` e espere aprovação. Check verde não é motivo para renderizar.
 10. Depois do render, confira com `ffprobe` se a duração bate com o `data-duration` raiz.
+
+Em posts e carrosséis (`skill criar-post`):
+
+1. Crie o projeto com `bin/novo-post <nome> [formato] [laminas]`.
+2. Preencha `BRIEF.md` e planeje cada lâmina e a legenda em `SPEC.md`.
+3. Se houver referência, rode `analisar-post` e escreva `referencias/<slug>/ficha.md`.
+4. Edite `slides/slide-XX.html` e escreva o título (`## Título`) e a legenda completa (gancho, corpo escaneável, CTA, 3 a 5 hashtags e texto alternativo por lâmina) em `roteiro/legenda.md`.
+5. Rode `bin/render-post post-<nome> --checar`, corrija todos os erros, renderize com `bin/render-post post-<nome>`, inspecione `renders/<prefixo>-<nome>/prancha.png` e registre em `REVIEW.md`.
 
 Na Claude Code, as skills do plugin têm prefixo: `/hyperframes:hyperframes`, `/hyperframes:hyperframes-registry`.
