@@ -157,7 +157,7 @@ Todo processamento pesado tenta primeiro a GPU, pelos caminhos abaixo, com queda
   `square` para 1080x1080.
 - **Mídia:** todo arquivo usado fica em `assets/` do projeto, sem caminho para fora dele.
   Arquivos em minúsculas e kebab-case (`trono-armadura.jpg`).
-- **Renders:** `draft` ao iterar, `looks` para revisar, `delivery` no final. Cada peça renderizada sai em uma pasta própria dentro de `renders/` com o prefixo correspondente (`renders/video-<slug>/`, `renders/reel-<slug>/`, `renders/post-<slug>/`, `renders/carrossel-<slug>/`), contendo o arquivo renderizado e a `legenda.md` daquela publicação (com `## Título` obrigatório, compatível com YouTube/Shorts/LinkedIn/Pinterest). Novas renderizações do mesmo conteúdo atualizam e mantêm a mesma pasta, sem criar outra.
+- **Renders:** `draft` ao iterar, `looks` para revisar, `delivery` no final. Cada peça renderizada sai em uma pasta própria dentro de `renders/` com o prefixo correspondente (`renders/video-<slug>/`, `renders/reel-<slug>/`, `renders/post-<slug>/`, `renders/carrossel-<slug>/`), contendo o arquivo renderizado e a `legenda.md` daquela publicação (com `## Título` obrigatório, compatível com YouTube/Shorts/LinkedIn/Pinterest). Novas renderizações do mesmo conteúdo atualizam e mantêm a mesma pasta, sem criar outra. Peças de identidade que não são publicação (foto de perfil, logo de avatar, capa de canal) ficam em `renders/perfil-<rede>/`, sem `legenda.md`.
 - **Commits e pull requests:** nunca citam agente, modelo ou ferramenta de IA como autor ou coautor. Sem `Co-Authored-By`
   e sem rodapé de ferramenta. Isso vale sobre qualquer padrão do agente.
 - **Versão:** uma só para todos os projetos, fixada no `package.json` da raiz. Atualizar só com

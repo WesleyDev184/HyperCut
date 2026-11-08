@@ -127,6 +127,7 @@ Meça voz, música e master com o filtro `ebur128` do FFmpeg. Limitador só se u
 - Com voz e música, entregue também as faixas em WAV com a duração completa, para remixar depois.
 - **Saída de render (`renders/<prefixo>-<slug>/`):** cada conteúdo renderizado fica na sua própria pasta dentro de `renders/` com o prefixo correspondente ao formato (`video-<slug>/`, `reel-<slug>/`, `post-<slug>/` ou `carrossel-<slug>/`), contendo o arquivo renderizado e a `legenda.md` daquela publicação (com `## Título`, `## Rede principal`, `## Legenda` e `## Texto alternativo (Alt Text)`).
 - **Re-renderização na mesma pasta:** novas renderizações ou ajustes sobre o mesmo conteúdo **mantêm e sobrescrevem os arquivos na mesma pasta `renders/<prefixo>-<slug>/`**, nunca criando outra pasta (`-v2`, `-novo`, `-copia`) para a mesma peça.
+- **Peças de perfil (`renders/perfil-<rede>/`):** foto de perfil, logo de avatar, capa de canal e outras imagens de identidade que não são publicação ficam em `renders/perfil-<rede>/` (ex.: `perfil-instagram/`, `perfil-youtube/`), **sem `legenda.md`**. Variações da mesma peça (claro, escuro, transparente) ficam juntas nessa pasta.
 - Dependência nova é instalada nesta pasta, nunca no sistema.
 
 ## Verificação
