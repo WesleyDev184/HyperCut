@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Instala ou atualiza a biblioteca de estilos Lemo-Opuscar em .cache/lemo-opuscar/.
+set -euo pipefail
+
+HF_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+DEST="$HF_ROOT/.cache/lemo-opuscar"
+REPO="https://github.com/lemomo-ai/lemo-opuscar.git"
+
+mkdir -p "$HF_ROOT/.cache"
+
+if [ -d "$DEST/.git" ]; then
+  echo "Atualizando Lemo-Opuscar em .cache/lemo-opuscar..."
+  git -C "$DEST" pull --ff-only
+else
+  echo "Clonando Lemo-Opuscar em .cache/lemo-opuscar..."
+  git clone --depth 1 "$REPO" "$DEST"
+fi
+
+echo "Pronto: $DEST"
