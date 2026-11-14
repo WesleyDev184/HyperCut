@@ -49,6 +49,7 @@ HyperCut/
 │   ├── instalar-ffmpeg  FFmpeg e FFprobe fixados em `.cache/ffmpeg/`, com checksum
 │   ├── instalar-whisper-gpu  transcrição em GPU NVIDIA em `.cache/whisper-gpu/`
 │   ├── instalar-whisper-cuda  `whisper-cli` em GPU para a skill reel, em `.cache/whisper-cuda/`
+│   ├── instalar-opuscar  biblioteca de estilos Lemo-Opuscar em `.cache/lemo-opuscar/`
 │   ├── transcrever-gpu  motor de `hf transcribe` na GPU
 │   ├── novo-video     cria projeto padronizado de vídeo
 │   ├── novo-reel      cria projeto de vídeo real
@@ -172,6 +173,7 @@ Ficam em `.claude/skills/`, e `.agents/skills` aponta para lá. Além de `reel` 
 - `assistir-video`: analisa vídeo de referência por link ou arquivo, tudo local.
 - `analisar-post`: analisa post ou carrossel de referência por link, imagem ou pasta local, gerando prancha, paleta e relatório.
 - `criar-post`: planeja, constrói e renderiza posts e carrosséis (PNG e PDF) e escreve a legenda da postagem.
+- `estilo-opuscar`: aplica os 99 estilos do Lemo-Opuscar (`.cache/lemo-opuscar/`) dentro do fluxo nativo do HyperFrames (`bin/hf` e `PRODUCAO.md`).
 - `tratar-bruto`: limpa voz, estabiliza e confere spec, só em material próprio.
 
 O agente precisa ler imagem para olhar pranchas e snapshots. Sem isso, a análise fica só nos metadados: avise quem pediu.
