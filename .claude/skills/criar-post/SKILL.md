@@ -51,7 +51,10 @@ Quantidade ideal de lâminas em carrossel: **5 a 10 lâminas** (ou `1` para post
 
 ## 4. Conferir, renderizar e revisar
 
+Antes do render, siga a skill `linguagem-simples` e rode o checador até zerar (sem mudar o fato da fonte):
+
 ```bash
+python3 .claude/skills/linguagem-simples/scripts/checar.py projetos/post-<nome>   # termo difícil e frase longa nas lâminas e na legenda
 bin/render-post post-<nome> --checar     # valida DOM, fontes, contraste, margens, título e legenda
 bin/render-post post-<nome>              # grava na pasta única renders/<prefixo>-<slug>/ (PNGs, prancha.png, PDF e legenda.md)
 ```

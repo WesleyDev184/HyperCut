@@ -173,6 +173,7 @@ Ficam em `.claude/skills/`, e `.agents/skills` aponta para lá. Além de `reel` 
 - `assistir-video`: analisa vídeo de referência por link ou arquivo, tudo local.
 - `analisar-post`: analisa post ou carrossel de referência por link, imagem ou pasta local, gerando prancha, paleta e relatório.
 - `criar-post`: planeja, constrói e renderiza posts e carrosséis (PNG e PDF) e escreve a legenda da postagem.
+- `linguagem-simples`: revisa texto para o público (lâminas, legenda, story, tela, locução) em palavras comuns, sem mudar o fato da fonte, e aponta termo difícil e frase longa com `scripts/checar.py`.
 - `estilo-opuscar`: aplica os 99 estilos do Lemo-Opuscar (`.cache/lemo-opuscar/`) dentro do fluxo nativo do HyperFrames (`bin/hf` e `PRODUCAO.md`).
 - `tratar-bruto`: limpa voz, estabiliza e confere spec, só em material próprio.
 
@@ -258,6 +259,7 @@ Em posts e carrosséis (`skill criar-post`):
 2. Preencha `BRIEF.md` e planeje cada lâmina e a legenda em `SPEC.md`.
 3. Se houver referência, rode `analisar-post` e escreva `referencias/<slug>/ficha.md`.
 4. Edite `slides/slide-XX.html` e escreva o título (`## Título`) e a legenda completa (gancho, corpo escaneável, CTA, 3 a 5 hashtags e texto alternativo por lâmina) em `roteiro/legenda.md`.
-5. Rode `bin/render-post post-<nome> --checar`, corrija todos os erros, renderize com `bin/render-post post-<nome>`, inspecione `renders/<prefixo>-<nome>/prancha.png` e registre em `REVIEW.md`.
+5. Rode o checador da skill `linguagem-simples` nas lâminas e na legenda (`python3 .claude/skills/linguagem-simples/scripts/checar.py projetos/post-<nome>`) e reescreva até zerar, sem mudar o fato.
+6. Rode `bin/render-post post-<nome> --checar`, corrija todos os erros, renderize com `bin/render-post post-<nome>`, inspecione `renders/<prefixo>-<nome>/prancha.png` e registre em `REVIEW.md`.
 
 Na Claude Code, as skills do plugin têm prefixo: `/hyperframes:hyperframes`, `/hyperframes:hyperframes-registry`.
