@@ -1,0 +1,41 @@
+# termo (regex, sem acento-sensível só onde indicado)	troque por	quando manter
+lâminas?	"post", "arraste para o lado", "nas fotos"	nunca no texto para o público: é palavra de bastidor
+slides?	"post", "arraste para o lado"	nunca no texto para o público
+transit(ar|a|e|em|ou|ando)|trânsito	sair da fazenda, viajar, ir para outra fazenda	só no nome do documento ("Guia de Trânsito Animal")
+moviment(ação|ações|ar|a|e|em|ado|ada)	saída, sair da fazenda, viagem	nunca
+obrigatoriedade	"vale para todos", "tem que"	nunca
+integra(r|m|ção)|integram	ligar, juntar	nunca
+isent[oa]s?	fica de fora, não entra	nunca
+comprovação	comprovar a vacina, levar o comprovante	nunca
+(?<!nacional de )identificação individual	brinco com número próprio, número para cada animal	no nome completo do PNIB (já liberado pelo checador)
+Base Central( de Dados)?	cadastro do governo	nunca
+finalidade	motivo, para que serve	nunca
+sanitári[oa]s?	da saúde do rebanho, de vacina	"calendário sanitário" se for o nome da tela do sistema
+órgãos? (estaduais|estadual|públicos?)	o governo do estado, a agência de defesa do estado	nunca
+ilustrativo	só um exemplo, exemplo inventado	nunca
+idade-padrão	idade usada para comparar	nunca
+pico d[aoe]	hora mais quente, o máximo	nunca
+abate imediato	direto para o abate	nunca
+\bISO\b	(tire)	nunca
+\bRFID\b	chip eletrônico	ao lado de "chip", se for nome de campo do sistema
+protocolos privados	(tire: não há troca curta segura; "programa privado" muda o sentido)	só com explicação tirada da fonte
+portaria|decreto	"regra do Ministério da Agricultura", "lei do estado"	número da norma só na linha "Fonte:" no fim da legenda (o checador pula essa linha)
+conforme	como	nunca
+mediante	com	nunca
+referente	sobre	nunca
+visando|a fim de	para	nunca
+no âmbito	em	nunca
+implement(ar|ação)	começar, pôr em prática	nunca
+otimiz(ar|ação)	melhorar	nunca
+utiliz(ar|a|e|am)	usar	nunca
+realiz(ar|a|e|am)	fazer	nunca
+efetu(ar|a|e|am)	fazer	nunca
+adquir(ir|a|e)	comprar	nunca
+possu(ir|i|em)	ter	nunca
+solicit(ar|e)	pedir	nunca
+recomenda-se	faça, o melhor é	nunca
+vigente|vigência	que vale, começa a valer	nunca
+prorroga(ção|do|da)	mais prazo	"prorrogação" se o órgão usar a palavra no aviso oficial
+sujeit[oa] a	pode levar	nunca
+dispositivo	brinco, botton	nunca
+zebuínos?	gado zebu, Nelore	nunca
